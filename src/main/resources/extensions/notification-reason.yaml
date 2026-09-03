@@ -1,0 +1,41 @@
+apiVersion: notification.halo.run/v1alpha1
+kind: ReasonType
+metadata:
+  name: insight-alert-state-changed
+spec:
+  displayName: Insight 运行监控告警
+  description: 当 Insight 检测到运行指标告警、告警恢复或发送测试通知时触发
+  properties:
+    - name: targetUser
+      type: string
+      description: 通知接收用户名
+    - name: title
+      type: string
+      description: 通知标题
+    - name: severity
+      type: string
+      description: 告警级别
+    - name: message
+      type: string
+      description: 告警说明
+    - name: metric
+      type: string
+      description: 指标名称
+    - name: value
+      type: number
+      description: 当前指标值
+    - name: threshold
+      type: number
+      description: 告警阈值
+    - name: occurredAt
+      type: string
+      description: 告警发生或恢复时间
+    - name: recovered
+      type: boolean
+      description: 是否为恢复通知
+    - name: stateLabel
+      type: string
+      description: 状态显示文本
+    - name: consoleUrl
+      type: string
+      description: Insight 控制台地址

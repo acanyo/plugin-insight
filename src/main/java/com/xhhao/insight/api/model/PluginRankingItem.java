@@ -1,0 +1,28 @@
+package com.xhhao.insight.api.model;
+
+public record PluginRankingItem(
+    String pluginId,
+    String displayName,
+    boolean enabled,
+    String phase,
+    boolean estimated,
+    double loadSharePercent,
+    long requestCount,
+    long errorCount,
+    double errorRatePercent,
+    double averageResponseMs,
+    double maximumResponseMs,
+    String resourceAvailability,
+    String resourceConfidence,
+    String resourceAttributionMethod,
+    boolean cpuTimeAvailable,
+    boolean allocatedMemoryAvailable,
+    double cpuSharePercent,
+    double allocationSharePercent,
+    double cpuTimeMs,
+    long allocatedMemoryBytes,
+    long activeThreadSamples,
+    int attributedThreadsMax,
+    double cpuAttributionCoveragePercent,
+    double allocationAttributionCoveragePercent
+) {}

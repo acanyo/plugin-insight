@@ -1,0 +1,30 @@
+import type { PluginRankingItem } from '@/types/insight'
+
+export function createPluginRankingItem(pluginId: string): PluginRankingItem {
+  return {
+    pluginId,
+    displayName: pluginId,
+    enabled: true,
+    phase: 'STARTED',
+    estimated: true,
+    resourceAvailability: 'warming_up',
+    resourceConfidence: 'unknown',
+    resourceAttributionMethod: 'thread_context_classloader',
+    cpuTimeAvailable: false,
+    allocatedMemoryAvailable: false,
+    cpuSharePercent: 0,
+    allocationSharePercent: 0,
+    cpuTimeMs: 0,
+    allocatedMemoryBytes: 0,
+    activeThreadSamples: 0,
+    attributedThreadsMax: 0,
+    cpuAttributionCoveragePercent: 0,
+    allocationAttributionCoveragePercent: 0,
+    loadSharePercent: 0,
+    requestCount: 0,
+    errorCount: 0,
+    errorRatePercent: 0,
+    averageResponseMs: 0,
+    maximumResponseMs: 0,
+  }
+}

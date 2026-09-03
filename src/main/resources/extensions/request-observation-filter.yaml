@@ -1,0 +1,8 @@
+apiVersion: plugin.halo.run/v1alpha1
+kind: ExtensionDefinition
+metadata:
+  name: insight-request-observation-filter
+spec:
+  className: com.xhhao.insight.metrics.RequestObservationFilter
+  extensionPointName: additional-webfilter
+  displayName: Insight 请求监控

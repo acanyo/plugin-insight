@@ -1,0 +1,211 @@
+apiVersion: v1alpha1
+kind: Setting
+metadata:
+  name: insight-settings
+spec:
+  forms:
+    - group: collection
+      label: 数据采集
+      formSchema:
+        - $formkit: number
+          name: samplingSeconds
+          label: 采样间隔（秒）
+          value: 15
+          min: 5
+          max: 300
+          validation: required|min:5|max:300
+        - $formkit: number
+          name: systemRetentionDays
+          label: 15 秒系统指标保留天数
+          value: 7
+          min: 1
+          max: 30
+          validation: required|min:1|max:30
+        - $formkit: number
+          name: aggregateRetentionDays
+          label: 分钟聚合保留天数
+          value: 30
+          min: 7
+          max: 180
+          validation: required|min:7|max:180
+        - $formkit: number
+          name: eventRetentionDays
+          label: 事件和告警保留天数
+          value: 30
+          min: 7
+          max: 365
+          validation: required|min:7|max:365
+        - $formkit: number
+          name: slowRequestMillis
+          label: 慢请求阈值（毫秒）
+          value: 1000
+          min: 100
+          max: 60000
+          validation: required|min:100|max:60000
+        - $formkit: number
+          name: maxDatabaseMegabytes
+          label: 数据库容量上限（MB）
+          value: 512
+          min: 64
+          max: 4096
+          validation: required|min:64|max:4096
+        - $formkit: switch
+          name: pluginResourceSamplingEnabled
+          label: 启用插件资源归因采样
+          help: 使用有界线程采样估算插件 CPU 与分配内存；共享线程池不会强行归属
+          value: true
+        - $formkit: number
+          name: pluginResourceMaxThreads
+          label: 插件资源采样线程上限
+          help: 每轮最多读取的线程计数器数量，超过上限会降低置信度
+          value: 512
+          min: 32
+          max: 2048
+          if: "$value.pluginResourceSamplingEnabled"
+          validation: required|min:32|max:2048
+    - group: alerts
+      label: 告警规则
+      formSchema:
+        - $formkit: switch
+          name: enabled
+          label: 启用告警
+          value: true
+        - $formkit: number
+          name: durationSeconds
+          label: 持续时间（秒）
+          value: 60
+          min: 15
+          max: 3600
+          validation: required|min:15|max:3600
+        - $formkit: number
+          name: cooldownMinutes
+          label: 重复通知抑制（分钟）
+          value: 30
+          min: 1
+          max: 1440
+          validation: required|min:1|max:1440
+        - $formkit: number
+          name: cpuWarningPercent
+          label: CPU 使用率阈值（%）
+          value: 85
+          min: 1
+          max: 100
+          validation: required|min:1|max:100
+        - $formkit: number
+          name: heapWarningPercent
+          label: JVM 堆使用率阈值（%）
+          value: 85
+          min: 1
+          max: 100
+          validation: required|min:1|max:100
+        - $formkit: number
+          name: diskWarningPercent
+          label: 磁盘使用率阈值（%）
+          value: 90
+          min: 1
+          max: 100
+          validation: required|min:1|max:100
+        - $formkit: number
+          name: errorRatePercent
+          label: 请求错误率阈值（%）
+          value: 5
+          min: 0.1
+          max: 100
+          step: 0.1
+          validation: required|min:0.1|max:100
+        - $formkit: number
+          name: p95WarningMillis
+          label: P95 响应时间阈值（毫秒）
+          value: 1500
+          min: 100
+          max: 60000
+          validation: required|min:100|max:60000
+    - group: notifications
+      label: 通知渠道
+      formSchema:
+        - $formkit: switch
+          name: haloNotificationEnabled
+          label: 启用 Halo 站内通知
+          help: 告警、恢复和测试通知将发送到指定用户的 Halo 通知中心
+          value: false
+        - $formkit: list
+          name: haloNotificationRecipients
+          label: Halo 通知接收用户名
+          help: 填写 Halo 用户名，例如 admin
+          value: []
+          max: 20
+          if: "$value.haloNotificationEnabled"
+          children:
+            - $formkit: text
+              index: "$index"
+              validation: required
+        - $formkit: switch
+          name: webhookEnabled
+          label: 启用 Webhook
+          value: false
+        - $formkit: text
+          name: webhookUrl
+          label: Webhook 地址
+          value: ""
+          if: "$value.webhookEnabled"
+          validation: url
+        - $formkit: password
+          name: webhookSecret
+          label: Webhook 签名密钥
+          value: ""
+          if: "$value.webhookEnabled"
+        - $formkit: switch
+          name: webhookAllowPrivateNetwork
+          label: 允许 Webhook 访问私有网络
+          help: 默认仅允许 HTTPS 公网地址；仅在信任目标且确实需要访问内网时开启
+          value: false
+          if: "$value.webhookEnabled"
+        - $formkit: switch
+          name: emailEnabled
+          label: 启用邮件通知
+          value: false
+        - $formkit: text
+          name: smtpHost
+          label: SMTP 主机
+          value: ""
+          if: "$value.emailEnabled"
+        - $formkit: number
+          name: smtpPort
+          label: SMTP 端口
+          help: 端口 465 自动使用 SMTPS，其他端口按下方设置使用 STARTTLS
+          value: 587
+          min: 1
+          max: 65535
+          if: "$value.emailEnabled"
+        - $formkit: switch
+          name: smtpStartTls
+          label: 使用 STARTTLS
+          help: 开启后必须成功升级 TLS，不允许回退到明文连接
+          value: true
+          if: "$value.emailEnabled"
+        - $formkit: text
+          name: smtpUsername
+          label: SMTP 用户名
+          value: ""
+          if: "$value.emailEnabled"
+        - $formkit: password
+          name: smtpPassword
+          label: SMTP 密码
+          value: ""
+          if: "$value.emailEnabled"
+        - $formkit: email
+          name: smtpFrom
+          label: 发件地址
+          value: ""
+          if: "$value.emailEnabled"
+          validation: email
+        - $formkit: list
+          name: recipients
+          label: 收件地址
+          value: []
+          max: 10
+          if: "$value.emailEnabled"
+          children:
+            - $formkit: email
+              index: "$index"
+              validation: required|email

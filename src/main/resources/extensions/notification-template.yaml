@@ -1,0 +1,31 @@
+apiVersion: notification.halo.run/v1alpha1
+kind: NotificationTemplate
+metadata:
+  name: insight-template-alert-state-changed
+spec:
+  reasonSelector:
+    reasonType: insight-alert-state-changed
+    language: default
+  template:
+    title: "[Halo Insight] [(${title != null ? title : '运行监控通知'})]"
+    rawBody: |
+      [(${message != null ? message : ''})]
+
+      状态：[(${stateLabel != null ? stateLabel : ''})]
+      级别：[(${severity != null ? severity : ''})]
+      指标：[(${metric != null ? metric : ''})]
+      当前值：[(${value != null ? value : ''})]
+      阈值：[(${threshold != null ? threshold : ''})]
+      时间：[(${occurredAt != null ? occurredAt : ''})]
+      查看监控：[(${site.url})][(${consoleUrl != null ? consoleUrl : ''})]
+    htmlBody: |
+      <p th:text="${message != null ? message : ''}"></p>
+      <p>
+        状态：<strong th:text="${stateLabel != null ? stateLabel : ''}"></strong><br/>
+        级别：<span th:text="${severity != null ? severity : ''}"></span><br/>
+        指标：<span th:text="${metric != null ? metric : ''}"></span><br/>
+        当前值：<span th:text="${value != null ? value : ''}"></span><br/>
+        阈值：<span th:text="${threshold != null ? threshold : ''}"></span><br/>
+        时间：<span th:text="${occurredAt != null ? occurredAt : ''}"></span>
+      </p>
+      <p><a th:href="|${site.url}${consoleUrl}|">查看 Insight 运行监控</a></p>

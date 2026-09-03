@@ -1,0 +1,39 @@
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: insight-role-view-monitoring
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/module: "Insight 运行监控"
+    rbac.authorization.halo.run/display-name: "查看运行监控"
+    rbac.authorization.halo.run/ui-permissions: |
+      ["plugin:insight:view"]
+rules:
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["overview", "trends", "plugins", "routes", "events", "alerts", "alerts/history"]
+    verbs: ["list"]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: insight-role-manage-monitoring
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: |
+      ["insight-role-view-monitoring"]
+    rbac.authorization.halo.run/module: "Insight 运行监控"
+    rbac.authorization.halo.run/display-name: "管理运行监控"
+    rbac.authorization.halo.run/ui-permissions: |
+      ["plugin:insight:manage"]
+rules:
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["alerts/acknowledge", "notifications"]
+    verbs: ["create"]
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["data"]
+    verbs: ["delete"]
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["export"]
+    verbs: ["list"]

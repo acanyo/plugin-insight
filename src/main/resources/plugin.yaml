@@ -1,0 +1,25 @@
+# Refer https://docs.halo.run/developer-guide/plugin/basics/manifest
+
+apiVersion: plugin.halo.run/v1alpha1
+kind: Plugin
+metadata:
+  # The name defines how the plugin is invoked, A unique name
+  name: insight
+spec:
+  enabled: true
+  requires: ">=2.26.0"
+  version: "1.0.0"
+  author:
+    name: Handsome
+    website: https://github.com/Handsome
+  logo: logo.png
+  homepage: https://github.com/Handsome/insight#readme
+  repo: https://github.com/Handsome/insight
+  issues: https://github.com/Handsome/insight/issues
+  displayName: "Insight 运行监控"
+  description: "Halo 运行状态、JVM、请求性能、插件影响与告警监控"
+  settingName: insight-settings
+  configMapName: insight-configmap
+  license:
+    - name: "GPL-3.0"
+      url: "https://github.com/Handsome/insight/blob/main/LICENSE"
