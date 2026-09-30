@@ -10,6 +10,16 @@ import java.util.function.ToDoubleFunction;
  * Built-in alert rules and their metric/threshold bindings.
  */
 public enum AlertRule {
+    RECENT_GC("jvm.gc-pressure", "jvm.gc.recent.percent", "近期 GC 时间占比过高", "%", "warning",
+        AlertEvaluationInput::recentGcPercent, settings -> percentThreshold(settings.getGcWarningPercent()), false),
+    SUSTAINED_PLUGIN("plugin.sustained", "plugin.sustained.count", "存在持续高消耗插件", "个", "warning",
+        AlertEvaluationInput::sustainedPluginCount, ignored -> 0, true),
+    DEPENDENCY_FAILURE("halo.dependency", "halo.dependency.failed.count", "Halo 依赖服务异常", "个", "critical",
+        AlertEvaluationInput::failedDependencyCount, ignored -> 0, true),
+    TASK_FAILURE("halo.task", "halo.task.failed.count", "业务任务失败或积压", "个", "warning",
+        AlertEvaluationInput::failedTaskCount, ignored -> 0, true),
+    HEAP_GROWTH("jvm.heap-growth", "jvm.heap.growth.signal", "GC 后堆占用持续增长，请排查", "", "warning",
+        AlertEvaluationInput::growingHeap, ignored -> 0, true),
     SYSTEM_CPU(
         "system.cpu",
         "system.cpu.percent",
@@ -104,6 +114,16 @@ public enum AlertRule {
         return ruleId;
     }
 
+    public boolean available(AlertEvaluationInput input, AlertSettings settings) {
+        return Double.isFinite(currentValue(input)) && enabled(settings);
+    }
+
+    public boolean enabled(AlertSettings settings) {
+        boolean advanced = this == RECENT_GC || this == SUSTAINED_PLUGIN || this == DEPENDENCY_FAILURE
+            || this == TASK_FAILURE || this == HEAP_GROWTH;
+        return settings.isEnabled() && (!advanced || settings.isAdvancedEnabled());
+    }
+
     public String metricKey() {
         return metricKey;
     }
@@ -137,6 +157,13 @@ public enum AlertRule {
     public String activeSummary(double value, double threshold) {
         return "%s，当前 %s%s，阈值 %s%s".formatted(
             title, displayValue(value), unit, displayValue(threshold), unit);
+    }
+
+    public String activeSummary(AlertEvaluationInput input, double threshold) {
+        if (this == DEPENDENCY_FAILURE) {
+            return DependencyAlertFormatter.activeSummary(input.failedDependencies());
+        }
+        return activeSummary(currentValue(input), threshold);
     }
 
     public String recoveredSummary(double value, double threshold) {

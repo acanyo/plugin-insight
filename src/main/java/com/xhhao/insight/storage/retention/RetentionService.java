@@ -38,7 +38,9 @@ public class RetentionService {
             deleteByCutoff(connection, "monitor_event", "occurred_at_ms",
                 policy.eventsBeforeMs(), batchSize, null),
             deleteByCutoff(connection, "alert_incident", "resolved_at_ms",
-                policy.resolvedAlertsBeforeMs(), batchSize, "resolved_at_ms IS NOT NULL")
+                policy.resolvedAlertsBeforeMs(), batchSize, "resolved_at_ms IS NOT NULL"),
+            deleteByCutoff(connection, "diagnostic_record", "updated_at_ms", policy.eventsBeforeMs(), batchSize, null),
+            deleteByCutoff(connection, "notification_delivery", "updated_at_ms", policy.eventsBeforeMs(), batchSize, "state <> 'pending'")
         ));
     }
 
@@ -54,7 +56,9 @@ public class RetentionService {
             deleteAll(connection, "resource_attribution_minute"),
             deleteAll(connection, "request_metric_minute"),
             deleteAll(connection, "monitor_event"),
-            deleteAll(connection, "alert_incident")
+            deleteAll(connection, "alert_incident"),
+            deleteAll(connection, "diagnostic_record"),
+            deleteByCutoff(connection, "notification_delivery", "updated_at_ms", Long.MAX_VALUE, Integer.MAX_VALUE, "state <> 'pending'")
         ));
     }
 

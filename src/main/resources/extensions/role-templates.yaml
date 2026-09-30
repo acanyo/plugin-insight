@@ -5,14 +5,19 @@ metadata:
   labels:
     halo.run/role-template: "true"
   annotations:
-    rbac.authorization.halo.run/module: "Insight 运行监控"
-    rbac.authorization.halo.run/display-name: "查看运行监控"
+    rbac.authorization.halo.run/module: "Halo Insight · 运行洞察"
+    rbac.authorization.halo.run/display-name: "查看运行洞察"
     rbac.authorization.halo.run/ui-permissions: |
       ["plugin:insight:view"]
 rules:
   - apiGroups: ["console.api.insight.halo.run"]
-    resources: ["overview", "trends", "plugins", "routes", "events", "alerts", "alerts/history"]
+    resources: ["overview", "trends", "plugins", "consumers", "routes", "events", "alerts", "optimization", "diagnostics", "observations", "business-tasks", "business-task-history"]
     verbs: ["list"]
+  # /alerts/history is parsed as resource=alerts, name=history, verb=get.
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["alerts"]
+    resourceNames: ["history"]
+    verbs: ["get"]
 ---
 apiVersion: v1alpha1
 kind: Role
@@ -23,8 +28,8 @@ metadata:
   annotations:
     rbac.authorization.halo.run/dependencies: |
       ["insight-role-view-monitoring"]
-    rbac.authorization.halo.run/module: "Insight 运行监控"
-    rbac.authorization.halo.run/display-name: "管理运行监控"
+    rbac.authorization.halo.run/module: "Halo Insight · 运行洞察"
+    rbac.authorization.halo.run/display-name: "管理运行洞察"
     rbac.authorization.halo.run/ui-permissions: |
       ["plugin:insight:manage"]
 rules:
@@ -37,3 +42,33 @@ rules:
   - apiGroups: ["console.api.insight.halo.run"]
     resources: ["export"]
     verbs: ["list"]
+  # Halo treats POST /resource/name without a subresource as a non-resource request.
+  - nonResourceURLs:
+      - "/apis/console.api.insight.halo.run/v1alpha1/optimization/apply"
+      - "/apis/console.api.insight.halo.run/v1alpha1/optimization/rollback"
+    verbs: ["create"]
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["observations", "observations/confirm", "observations/cancel", "observations/restored"]
+    verbs: ["create"]
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["deliveries"]
+    verbs: ["list"]
+---
+apiVersion: v1alpha1
+kind: Role
+metadata:
+  name: insight-role-diagnose
+  labels:
+    halo.run/role-template: "true"
+  annotations:
+    rbac.authorization.halo.run/dependencies: '["insight-role-manage-monitoring"]'
+    rbac.authorization.halo.run/module: "Halo Insight · 运行洞察"
+    rbac.authorization.halo.run/display-name: "访问日志、线程栈与 JFR 诊断"
+    rbac.authorization.halo.run/ui-permissions: '["plugin:insight:diagnose"]'
+rules:
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["diagnostic-threads", "diagnostic-logs", "recordings", "recordings/download"]
+    verbs: ["get", "list"]
+  - apiGroups: ["console.api.insight.halo.run"]
+    resources: ["recordings"]
+    verbs: ["create"]

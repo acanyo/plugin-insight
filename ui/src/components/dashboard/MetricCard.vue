@@ -3,7 +3,7 @@ defineProps<{
   label: string
   value: string
   detail: string
-  tone?: 'default' | 'green' | 'amber' | 'red' | 'cyan'
+  tone?: 'default' | 'primary' | 'healthy' | 'warning' | 'critical'
 }>()
 </script>
 
@@ -23,40 +23,15 @@ defineProps<{
   position: relative;
   display: flex;
   min-width: 0;
-  min-height: 112px;
+  min-height: 108px;
   flex-direction: column;
   justify-content: space-between;
-  padding: 13px 14px;
+  padding: 15px 16px 14px;
   overflow: hidden;
-  border: 1px solid var(--insight-border);
-  border-radius: 6px;
+  border: 0;
+  border-right: 1px solid var(--insight-border);
+  border-radius: 0;
   background: var(--insight-surface);
-}
-
-.metric-card::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  height: 2px;
-  background: var(--insight-border-strong);
-  content: '';
-}
-
-.metric-card--green::before {
-  background: var(--insight-green);
-}
-
-.metric-card--amber::before {
-  background: var(--insight-amber);
-}
-
-.metric-card--red::before {
-  background: var(--insight-red);
-}
-
-.metric-card--cyan::before {
-  background: var(--insight-cyan);
 }
 
 .metric-card__topline {
@@ -70,7 +45,7 @@ defineProps<{
 .metric-card__detail {
   overflow: hidden;
   color: var(--insight-muted);
-  font-size: 12px;
+  font-size: var(--insight-text-sm);
   line-height: 17px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -78,20 +53,32 @@ defineProps<{
 
 .metric-card__icon {
   display: grid;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 6px;
   place-items: center;
   color: var(--insight-subtle);
+  background: var(--insight-surface-muted);
 }
 
 .metric-card__icon :deep(svg) {
-  width: 17px;
-  height: 17px;
+  width: 15px;
+  height: 15px;
+}
+
+.metric-card--warning .metric-card__icon {
+  color: var(--insight-amber);
+  background: var(--insight-amber-soft);
+}
+
+.metric-card--critical .metric-card__icon {
+  color: var(--insight-red);
+  background: var(--insight-red-soft);
 }
 
 .metric-card__value {
-  margin: 6px 0 2px;
+  margin: 5px 0 2px;
   overflow: hidden;
   color: var(--insight-ink);
   font-size: 22px;

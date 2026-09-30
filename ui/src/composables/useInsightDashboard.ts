@@ -5,6 +5,8 @@ import type { DashboardTab, TimeRange } from '@/types/insight'
 import { useAlertsResource } from './insight/useAlertsResource'
 import { useEventTimeline } from './insight/useEventTimeline'
 import { useInsightActions } from './insight/useInsightActions'
+import { useOptimizationResource } from './insight/useOptimizationResource'
+import { usePluginOptimizationAction } from './insight/usePluginOptimizationAction'
 import { useOverviewResource } from './insight/useOverviewResource'
 import { usePerformanceResources } from './insight/usePerformanceResources'
 import { usePolling } from './usePolling'
@@ -16,6 +18,8 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
   const performanceResources = usePerformanceResources(range)
   const alertsResource = useAlertsResource(() => overviewResource.refreshOverview(true))
   const eventTimeline = useEventTimeline()
+  const optimizationResource = useOptimizationResource(() => refresh())
+  const pluginOptimizationAction = usePluginOptimizationAction(() => refresh())
 
   const lastUpdatedAt = ref<number>()
   const refreshing = ref(false)
@@ -23,9 +27,9 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
 
   const hasAnyData = computed(() =>
     Boolean(
-      overviewResource.overview.data.value
-      || performanceResources.trends.data.value
-      || alertsResource.alerts.data.value,
+      overviewResource.overview.data.value ||
+      performanceResources.trends.data.value ||
+      alertsResource.alerts.data.value,
     ),
   )
 
@@ -33,19 +37,26 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
     const generation = ++refreshGeneration
     const requestedRange = range.value
     const requestedTab = activeTab.value
-    const requestedSort = performanceResources.pluginSort.value
+    const requestedPluginSort = performanceResources.pluginSort.value
+    const requestedRouteSort = performanceResources.routeSort.value
     const requestedAlertStatus = alertsResource.alertStatus.value
     if (!silent) refreshing.value = true
 
     const tasks: Promise<boolean>[] = [
       overviewResource.refreshOverview(silent),
+      optimizationResource.refreshOptimization(silent),
       performanceResources.refreshTrends(requestedRange, silent),
       alertsResource.refreshAlerts(requestedAlertStatus, silent),
     ]
 
     if (requestedTab === 'performance') {
       tasks.push(
-        performanceResources.refreshPerformance(requestedRange, requestedSort, silent),
+        performanceResources.refreshPerformance(
+          requestedRange,
+          requestedPluginSort,
+          requestedRouteSort,
+          silent,
+        ),
       )
     }
 
@@ -72,11 +83,15 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
     performanceResources.abortPerformanceRequests()
     alertsResource.abortAlertRequests()
     eventTimeline.cancelEventRequests()
+    optimizationResource.abortOptimizationRequests()
   })
 
   watch([range, activeTab], () => void refresh())
   watch(performanceResources.pluginSort, () => {
     if (activeTab.value === 'performance') void performanceResources.refreshPlugins()
+  })
+  watch(performanceResources.routeSort, () => {
+    if (activeTab.value === 'performance') void performanceResources.refreshRoutes()
   })
   watch(alertsResource.alertStatus, () => void alertsResource.refreshAlerts())
   watch(
@@ -90,10 +105,13 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
     overview: overviewResource.overview,
     trends: performanceResources.trends,
     plugins: performanceResources.plugins,
+    consumers: performanceResources.consumers,
     routes: performanceResources.routes,
     alerts: alertsResource.alerts,
     events: eventTimeline.events,
+    optimization: optimizationResource.optimization,
     pluginSort: performanceResources.pluginSort,
+    routeSort: performanceResources.routeSort,
     alertStatus: alertsResource.alertStatus,
     eventFilters: eventTimeline.eventFilters,
     lastUpdatedAt,
@@ -105,6 +123,9 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
     loadingMoreAlerts: alertsResource.loadingMore,
     hasMoreAlerts: computed(() => Boolean(alertsResource.nextCursor.value)),
     acknowledgingAlertIds: alertsResource.acknowledgingAlertIds,
+    applyingOptimization: optimizationResource.applying,
+    rollingBackOptimization: optimizationResource.rollingBack,
+    disablingPluginId: pluginOptimizationAction.disablingPluginId,
     hasAnyData,
     refresh,
     loadMoreEvents: eventTimeline.loadMoreEvents,
@@ -113,5 +134,8 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
     sendTestNotification: actions.sendTestNotification,
     clearMonitoringData: actions.clearMonitoringData,
     exportData: actions.exportData,
+    applyOptimization: optimizationResource.applyOptimization,
+    rollbackOptimization: optimizationResource.rollbackOptimization,
+    disablePlugin: pluginOptimizationAction.disablePlugin,
   }
 }

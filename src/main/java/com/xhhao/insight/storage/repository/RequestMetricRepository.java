@@ -20,6 +20,7 @@ import org.springframework.stereotype.Repository;
 public class RequestMetricRepository {
 
     private static final int MAX_TREND_MINUTES = 43_201;
+    private static final long MINUTE_MS = 60_000;
 
     private static final String UPSERT_SQL = """
         INSERT INTO request_metric_minute(
@@ -143,6 +144,8 @@ public class RequestMetricRepository {
             try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT bucket_start_ms,
                        SUM(request_count) AS request_count,
+                       SUM(CASE WHEN status_group = 4 THEN request_count ELSE 0 END)
+                           AS client_error_count,
                        SUM(error_count) AS error_count,
                        SUM(duration_sum_us) AS duration_sum_us,
                        MAX(duration_max_us) AS duration_max_us,
@@ -170,7 +173,9 @@ public class RequestMetricRepository {
                     while (resultSet.next()) {
                         metrics.add(new RequestTrendMinute(
                             resultSet.getLong("bucket_start_ms"),
+                            MINUTE_MS,
                             resultSet.getLong("request_count"),
+                            resultSet.getLong("client_error_count"),
                             resultSet.getLong("error_count"),
                             resultSet.getLong("duration_sum_us"),
                             resultSet.getLong("duration_max_us"),

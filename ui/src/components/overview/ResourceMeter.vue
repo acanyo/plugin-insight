@@ -6,6 +6,7 @@ import { formatPercent } from '@/utils/format'
 const props = defineProps<{
   label: string
   value: number
+  detail?: string
 }>()
 
 const normalizedValue = computed(() => Math.max(0, Math.min(100, props.value)))
@@ -28,6 +29,7 @@ const tone = computed(() => {
         :style="{ width: formatPercent(normalizedValue) }"
       ></i>
     </div>
+    <small v-if="detail">{{ detail }}</small>
   </div>
 </template>
 
@@ -54,12 +56,20 @@ const tone = computed(() => {
   height: 7px;
   overflow: hidden;
   border-radius: 3px;
-  background: #edf0f2;
+  background: #e5e7eb;
 }
 
 .resource-meter__track i {
   display: block;
   height: 100%;
+}
+
+.resource-meter small {
+  display: block;
+  margin-top: 5px;
+  color: var(--insight-muted);
+  font-size: 11px;
+  line-height: 16px;
 }
 
 .resource-meter__fill--healthy {

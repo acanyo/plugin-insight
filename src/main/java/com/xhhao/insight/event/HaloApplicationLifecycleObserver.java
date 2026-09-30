@@ -4,6 +4,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
 import org.pf4j.PluginWrapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.availability.ApplicationAvailability;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.ReadinessState;
@@ -31,6 +32,7 @@ public final class HaloApplicationLifecycleObserver {
     private volatile boolean active;
     private ApplicationEventMulticaster eventMulticaster;
 
+    @Autowired
     public HaloApplicationLifecycleObserver(PluginWrapper currentPlugin, EventRecorder events) {
         this(rootContext(currentPlugin), events);
     }

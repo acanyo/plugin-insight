@@ -5,7 +5,9 @@ package com.xhhao.insight.storage.model;
  */
 public record RequestTrendMinute(
     long bucketStartMs,
+    long intervalMs,
     long requestCount,
+    long clientErrorCount,
     long errorCount,
     long durationSumUs,
     long durationMaxUs,
@@ -14,7 +16,11 @@ public record RequestTrendMinute(
 
     public RequestTrendMinute {
         ModelChecks.nonNegative(bucketStartMs, "bucketStartMs");
+        if (intervalMs <= 0) {
+            throw new IllegalArgumentException("intervalMs must be positive");
+        }
         ModelChecks.nonNegative(requestCount, "requestCount");
+        ModelChecks.nonNegative(clientErrorCount, "clientErrorCount");
         ModelChecks.nonNegative(errorCount, "errorCount");
         ModelChecks.nonNegative(durationSumUs, "durationSumUs");
         ModelChecks.nonNegative(durationMaxUs, "durationMaxUs");

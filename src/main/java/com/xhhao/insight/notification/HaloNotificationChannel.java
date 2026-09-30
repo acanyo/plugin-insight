@@ -86,6 +86,7 @@ public class HaloNotificationChannel implements NotificationChannel {
                     .url(CONSOLE_URL)
                     .build())
                 .attribute("targetUser", recipient)
+                .attribute("incidentId", safe(notification.incidentId()))
                 .attribute("title", safe(notification.title()))
                 .attribute("severity", safe(notification.severity()))
                 .attribute("message", safe(notification.message()))
@@ -121,7 +122,7 @@ public class HaloNotificationChannel implements NotificationChannel {
     }
 
     private static String displayTitle(String value) {
-        return value == null || value.isBlank() ? "Insight 运行监控通知" : value;
+        return value == null || value.isBlank() ? "Halo Insight 运行洞察通知" : value;
     }
 
     private static void await(Mono<Void> operation) {

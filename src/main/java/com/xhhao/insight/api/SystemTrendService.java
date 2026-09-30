@@ -40,13 +40,18 @@ public class SystemTrendService {
         List<TrendResponse.SystemPoint> points = new ArrayList<>(samples.size());
         SystemSample previous = null;
         for (SystemSample sample : samples) {
-            long gcPauseDelta = previous != null && sample.uptimeMs() >= previous.uptimeMs()
+            boolean sameRuntime = previous != null && sample.uptimeMs() >= previous.uptimeMs();
+            long gcCountDelta = sameRuntime
+                ? nonNegativeDelta(sample.gcCount(), previous.gcCount()) : 0;
+            long gcPauseDelta = sameRuntime
                 ? nonNegativeDelta(sample.gcPauseMs(), previous.gcPauseMs()) : 0;
             points.add(new TrendResponse.SystemPoint(
                 sample.sampledAtMs(), sample.processCpuLoad(), sample.systemCpuLoad(),
-                sample.heapUsedBytes(), sample.heapMaxBytes(), sample.systemMemoryUsedBytes(),
+                sample.systemLoadAverage(), sample.heapUsedBytes(), sample.heapMaxBytes(),
+                sample.nonHeapUsedBytes(), sample.systemMemoryUsedBytes(),
                 sample.systemMemoryTotalBytes(), sample.diskUsedBytes(), sample.diskTotalBytes(),
-                sample.liveThreads(), gcPauseDelta
+                sample.liveThreads(), sample.daemonThreads(), sample.peakThreads(),
+                sample.deadlockedThreads(), gcCountDelta, gcPauseDelta
             ));
             previous = sample;
         }
@@ -73,28 +78,41 @@ public class SystemTrendService {
         long samples = 0;
         double processCpuWeighted = 0;
         double systemCpuWeighted = 0;
+        double systemLoadWeighted = 0;
         double heapUsedWeighted = 0;
+        double nonHeapUsedWeighted = 0;
         double memoryUsedWeighted = 0;
         double liveThreadsWeighted = 0;
+        int peakThreads = 0;
+        int deadlockedThreads = 0;
+        long gcCount = 0;
         long gcPauseMs = 0;
         for (SystemMetricMinute metric : metrics) {
             samples += metric.sampleCount();
             processCpuWeighted += metric.processCpuAverage() * metric.sampleCount();
             systemCpuWeighted += metric.systemCpuAverage() * metric.sampleCount();
+            systemLoadWeighted += metric.systemLoadAverage() * metric.sampleCount();
             heapUsedWeighted += (double) metric.heapUsedAverageBytes() * metric.sampleCount();
+            nonHeapUsedWeighted +=
+                (double) metric.nonHeapUsedAverageBytes() * metric.sampleCount();
             memoryUsedWeighted +=
                 (double) metric.systemMemoryUsedAverageBytes() * metric.sampleCount();
             liveThreadsWeighted += metric.liveThreadsAverage() * metric.sampleCount();
+            peakThreads = Math.max(peakThreads, metric.peakThreadsMax());
+            deadlockedThreads = Math.max(deadlockedThreads, metric.deadlockedThreadsMax());
+            gcCount = saturatingAdd(gcCount, metric.gcCountDelta());
             gcPauseMs = saturatingAdd(gcPauseMs, metric.gcPauseMsDelta());
         }
         SystemMetricMinute last = metrics.getLast();
         double divisor = Math.max(1, samples);
         return new TrendResponse.SystemPoint(
             last.lastSampledAtMs(), processCpuWeighted / divisor, systemCpuWeighted / divisor,
-            Math.round(heapUsedWeighted / divisor), last.heapMaxLastBytes(),
+            systemLoadWeighted / divisor, Math.round(heapUsedWeighted / divisor),
+            last.heapMaxLastBytes(), Math.round(nonHeapUsedWeighted / divisor),
             Math.round(memoryUsedWeighted / divisor), last.systemMemoryTotalLastBytes(),
             last.diskUsedLastBytes(), last.diskTotalLastBytes(),
-            (int) Math.round(liveThreadsWeighted / divisor), gcPauseMs
+            (int) Math.round(liveThreadsWeighted / divisor), last.daemonThreadsLast(),
+            peakThreads, deadlockedThreads, gcCount, gcPauseMs
         );
     }
 

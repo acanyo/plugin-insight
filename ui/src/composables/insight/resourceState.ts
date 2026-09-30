@@ -2,10 +2,7 @@ import { isAxiosError } from 'axios'
 import { ref, shallowRef, type Ref, type ShallowRef } from 'vue'
 
 import { errorMessage } from '@/utils/format'
-import type {
-  LatestRequestChannel,
-  LatestRequestContext,
-} from '@/utils/latestRequest'
+import type { LatestRequestChannel, LatestRequestContext } from '@/utils/latestRequest'
 
 export interface ResourceState<T> {
   data: ShallowRef<T | undefined>

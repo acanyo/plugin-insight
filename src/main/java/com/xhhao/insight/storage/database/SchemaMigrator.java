@@ -18,9 +18,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class SchemaMigrator {
 
-    public static final int SUPPORTED_VERSION = 3;
+    public static final int SUPPORTED_VERSION = 5;
 
-    private static final Map<String, Set<String>> REQUIRED_TABLE_COLUMNS = Map.of(
+    private static final Map<String, Set<String>> REQUIRED_TABLE_COLUMNS = withDiagnostics(Map.of(
         "schema_history", Set.of("version", "description", "checksum", "installed_at_ms"),
         "system_sample_15s", Set.of(
             "sampled_at_ms", "uptime_ms", "process_cpu_load", "system_cpu_load",
@@ -69,8 +69,18 @@ public class SchemaMigrator {
         "alert_incident", Set.of(
             "id", "rule_id", "status", "severity", "title", "summary", "fingerprint",
             "triggered_at_ms", "updated_at_ms", "resolved_at_ms", "occurrence_count",
-            "last_value", "threshold_value", "details_json")
-    );
+            "last_value", "threshold_value", "details_json"),
+        "optimization_state", Set.of(
+            "id", "low_overhead_enabled", "applied_at_ms", "updated_at_ms")
+    ));
+
+    private static Map<String, Set<String>> withDiagnostics(Map<String, Set<String>> base) {
+        var columns = new java.util.LinkedHashMap<>(base);
+        columns.put("diagnostic_record", Set.of("kind", "id", "updated_at_ms", "payload"));
+        columns.put("notification_delivery", Set.of("id", "channel", "payload", "state", "attempts",
+            "next_at_ms", "created_at_ms", "updated_at_ms", "message"));
+        return Map.copyOf(columns);
+    }
 
     private static final Map<String, List<String>> REQUIRED_INDEX_COLUMNS = Map.of(
         "idx_plugin_metric_plugin_time", List.of("plugin_id", "bucket_start_ms"),
@@ -79,7 +89,9 @@ public class SchemaMigrator {
         "idx_monitor_event_time_id", List.of("occurred_at_ms", "id"),
         "idx_monitor_event_fingerprint", List.of("fingerprint", "last_seen_at_ms"),
         "idx_alert_incident_status_time", List.of("status", "updated_at_ms"),
-        "idx_alert_incident_fingerprint", List.of("fingerprint", "updated_at_ms")
+        "idx_alert_incident_fingerprint", List.of("fingerprint", "updated_at_ms"),
+        "idx_diagnostic_time", List.of("kind", "updated_at_ms"),
+        "idx_delivery_due", List.of("state", "next_at_ms")
     );
 
     private final SqliteConnectionManager connectionManager;
@@ -112,6 +124,14 @@ public class SchemaMigrator {
                 "Add bounded plugin resource attribution",
                 "insight-schema-v3-plugin-resource-attribution",
                 this::migrateToV3
+            ),
+            5, new Migration(5, "Diagnostic history and notification outbox",
+                "insight-schema-v5-diagnostics-outbox", DiagnosticsMigration::apply),
+            4, new Migration(
+                4,
+                "Add persisted optimization profile",
+                "insight-schema-v4-optimization-profile",
+                this::migrateToV4
             )
         );
     }
@@ -376,6 +396,24 @@ public class SchemaMigrator {
         }
     }
 
+    private void migrateToV4(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("""
+                CREATE TABLE IF NOT EXISTS optimization_state (
+                    id INTEGER PRIMARY KEY CHECK(id = 1),
+                    low_overhead_enabled INTEGER NOT NULL CHECK(low_overhead_enabled IN (0, 1)),
+                    applied_at_ms INTEGER NOT NULL,
+                    updated_at_ms INTEGER NOT NULL
+                )
+                """);
+            statement.executeUpdate("""
+                INSERT OR IGNORE INTO optimization_state(
+                    id, low_overhead_enabled, applied_at_ms, updated_at_ms
+                ) VALUES (1, 0, 0, 0)
+                """);
+        }
+    }
+
     private static void backfillSystemMetricMinutes(Statement statement) throws SQLException {
         statement.executeUpdate("""
             WITH bucketed AS (
@@ -499,6 +537,10 @@ public class SchemaMigrator {
             throw new SchemaValidationException("SQLite schema is missing tables " + missingTables);
         }
         validateExistingTableShapes(connection);
+
+        if (!tables.containsAll(Set.of("diagnostic_record", "notification_delivery"))) {
+            throw new SchemaValidationException("Diagnostic history tables are missing");
+        }
 
         Set<String> indexes = objectNames(connection, "index");
         Set<String> missingIndexes = new LinkedHashSet<>(REQUIRED_INDEX_COLUMNS.keySet());

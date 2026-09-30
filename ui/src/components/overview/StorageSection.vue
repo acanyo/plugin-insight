@@ -3,7 +3,9 @@ import { VButton } from '@halo-dev/components'
 import { computed } from 'vue'
 
 import SectionHeading from '@/components/common/SectionHeading.vue'
-import ResourceDetailGrid, { type ResourceDetail } from '@/components/overview/ResourceDetailGrid.vue'
+import ResourceDetailGrid, {
+  type ResourceDetail,
+} from '@/components/overview/ResourceDetailGrid.vue'
 import ResourceMeter from '@/components/overview/ResourceMeter.vue'
 import ResourceSectionLayout from '@/components/overview/ResourceSectionLayout.vue'
 import { INSIGHT_MANAGE_PERMISSION } from '@/constants/permissions'

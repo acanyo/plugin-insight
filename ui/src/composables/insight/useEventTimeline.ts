@@ -1,20 +1,11 @@
 import { reactive, ref } from 'vue'
 
 import { fetchEvents } from '@/api/insight'
-import type {
-  CursorPage,
-  EventQuery,
-  MonitorEvent,
-  Severity,
-} from '@/types/insight'
+import type { CursorPage, EventQuery, MonitorEvent, Severity } from '@/types/insight'
 import { errorMessage } from '@/utils/format'
 import { createLatestRequestChannel } from '@/utils/latestRequest'
 
-import {
-  createResource,
-  isCanceledRequest,
-  loadResource,
-} from './resourceState'
+import { createResource, isCanceledRequest, loadResource } from './resourceState'
 
 export function useEventTimeline() {
   const events = createResource<CursorPage<MonitorEvent>>()

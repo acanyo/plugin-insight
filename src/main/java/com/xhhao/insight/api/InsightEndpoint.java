@@ -1,5 +1,6 @@
 package com.xhhao.insight.api;
 
+import com.xhhao.insight.optimization.OptimizationService;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
@@ -35,6 +36,7 @@ public class InsightEndpoint implements CustomEndpoint {
     private final NotificationCommandService notificationCommands;
     private final MonitoringDataCommandService dataCommands;
     private final MonitoringExportService exportService;
+    private final OptimizationService optimizationService;
     private final InsightIoScheduler ioScheduler;
     private final ExportContentReader exportContentReader;
 
@@ -47,10 +49,12 @@ public class InsightEndpoint implements CustomEndpoint {
         NotificationCommandService notificationCommands,
         MonitoringDataCommandService dataCommands,
         MonitoringExportService exportService,
-        InsightIoScheduler ioScheduler
+        InsightIoScheduler ioScheduler,
+        OptimizationService optimizationService
     ) {
         this(overviewQueries, performanceQueries, incidentQueries, alertCommands,
             notificationCommands, dataCommands, exportService, ioScheduler,
+            optimizationService,
             (path, bufferFactory) -> DataBufferUtils.read(path, bufferFactory, 64 * 1_024));
     }
 
@@ -63,6 +67,7 @@ public class InsightEndpoint implements CustomEndpoint {
         MonitoringDataCommandService dataCommands,
         MonitoringExportService exportService,
         InsightIoScheduler ioScheduler,
+        OptimizationService optimizationService,
         ExportContentReader exportContentReader
     ) {
         this.overviewQueries = overviewQueries;
@@ -73,6 +78,7 @@ public class InsightEndpoint implements CustomEndpoint {
         this.dataCommands = dataCommands;
         this.exportService = exportService;
         this.ioScheduler = ioScheduler;
+        this.optimizationService = optimizationService;
         this.exportContentReader = exportContentReader;
     }
 
@@ -82,6 +88,7 @@ public class InsightEndpoint implements CustomEndpoint {
             .GET("overview", this::overview)
             .GET("trends", this::trends)
             .GET("plugins", this::plugins)
+            .GET("consumers", this::consumers)
             .GET("routes", this::routes)
             .GET("events", this::events)
             .GET("alerts", this::alerts)
@@ -90,6 +97,9 @@ public class InsightEndpoint implements CustomEndpoint {
             .POST("notifications", this::testNotifications)
             .DELETE("data", this::clearData)
             .GET("export", this::export)
+            .GET("optimization", this::optimization)
+            .POST("optimization/apply", this::applyOptimization)
+            .POST("optimization/rollback", this::rollbackOptimization)
             .build();
     }
 
@@ -111,9 +121,13 @@ public class InsightEndpoint implements CustomEndpoint {
             query(request, "sort", "load")));
     }
 
+    private Mono<ServerResponse> consumers(ServerRequest request) {
+        return json(() -> performanceQueries.consumers(query(request, "range", "1h")));
+    }
+
     private Mono<ServerResponse> routes(ServerRequest request) {
         return json(() -> performanceQueries.routes(query(request, "range", "1h"),
-            query(request, "sort", "p95")));
+            query(request, "sort", "slow")));
     }
 
     private Mono<ServerResponse> events(ServerRequest request) {
@@ -167,6 +181,18 @@ public class InsightEndpoint implements CustomEndpoint {
         return ServerResponse.ok()
             .contentType(MediaType.APPLICATION_JSON)
             .body(exportBody(rangeName));
+    }
+
+    private Mono<ServerResponse> optimization(ServerRequest request) {
+        return json(optimizationService::status);
+    }
+
+    private Mono<ServerResponse> applyOptimization(ServerRequest request) {
+        return json(optimizationService::apply);
+    }
+
+    private Mono<ServerResponse> rollbackOptimization(ServerRequest request) {
+        return json(optimizationService::rollback);
     }
 
     BodyInserter<Void, ReactiveHttpOutputMessage> exportBody(String rangeName) {

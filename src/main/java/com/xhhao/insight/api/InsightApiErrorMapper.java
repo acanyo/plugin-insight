@@ -14,6 +14,9 @@ final class InsightApiErrorMapper {
 
     static ApiError map(Throwable failure) {
         Throwable error = unwrap(failure);
+        if (error instanceof com.xhhao.insight.diagnostics.DiagnosticConflictException conflict) {
+            return new ApiError(HttpStatus.CONFLICT, "diagnostic_conflict", conflict.getMessage());
+        }
         if (error instanceof IllegalArgumentException) {
             return new ApiError(HttpStatus.BAD_REQUEST, "bad_request", "请求参数无效");
         }

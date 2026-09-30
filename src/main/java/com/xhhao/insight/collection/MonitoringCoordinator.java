@@ -1,6 +1,7 @@
 package com.xhhao.insight.collection;
 
 import com.xhhao.insight.alert.AlertEngine;
+import com.xhhao.insight.diagnostics.AdvancedAlertSignals;
 import com.xhhao.insight.config.CollectionSettings;
 import com.xhhao.insight.config.InsightSettingsService;
 import com.xhhao.insight.event.EventRecorder;
@@ -9,6 +10,7 @@ import com.xhhao.insight.metrics.JvmSystemMetricsCollector;
 import com.xhhao.insight.metrics.RequestMetric;
 import com.xhhao.insight.metrics.RequestMetricsRegistry;
 import com.xhhao.insight.metrics.RequestWindowSnapshot;
+import com.xhhao.insight.optimization.OptimizationRuntimePolicy;
 import com.xhhao.insight.resource.PluginResourceSampler;
 import com.xhhao.insight.runtime.MonitoringState;
 import com.xhhao.insight.storage.capacity.HistoryWriteGate;
@@ -53,6 +55,8 @@ public class MonitoringCoordinator {
     private final StorageRecoveryMonitor storageRecoveryMonitor;
     private final Clock clock;
     private final MonitoringSchedulerFactory schedulerFactory;
+    private final OptimizationRuntimePolicy optimizationPolicy;
+    private final AdvancedAlertSignals advancedSignals;
 
     private volatile ScheduledFuture<?> task;
     private ScheduledExecutorService executor;
@@ -79,14 +83,16 @@ public class MonitoringCoordinator {
         RequestFailureEventBuffer requestFailureEvents,
         AlertEngine alertEngine,
         StorageRecoveryMonitor storageRecoveryMonitor,
-        MonitoringSchedulerFactory schedulerFactory
+        MonitoringSchedulerFactory schedulerFactory,
+        OptimizationRuntimePolicy optimizationPolicy,
+        AdvancedAlertSignals advancedSignals
     ) {
         this(systemCollector, requestRegistry, requestWindow, systemMetrics,
             pluginResourceSampler, pluginResources,
             completedMetricBuffer, retentionService, storage, historyWriteGate, settingsService,
             haloRuntimeRefresh, state, events, requestFailureEvents, alertEngine,
             storageRecoveryMonitor,
-            schedulerFactory, Clock.systemUTC());
+            schedulerFactory, optimizationPolicy, advancedSignals, Clock.systemUTC());
     }
 
     MonitoringCoordinator(
@@ -108,6 +114,8 @@ public class MonitoringCoordinator {
         AlertEngine alertEngine,
         StorageRecoveryMonitor storageRecoveryMonitor,
         MonitoringSchedulerFactory schedulerFactory,
+        OptimizationRuntimePolicy optimizationPolicy,
+        AdvancedAlertSignals advancedSignals,
         Clock clock
     ) {
         this.systemCollector = systemCollector;
@@ -128,6 +136,8 @@ public class MonitoringCoordinator {
         this.alertEngine = alertEngine;
         this.storageRecoveryMonitor = storageRecoveryMonitor;
         this.schedulerFactory = schedulerFactory;
+        this.optimizationPolicy = optimizationPolicy;
+        this.advancedSignals = advancedSignals;
         this.clock = clock;
     }
 
@@ -240,16 +250,16 @@ public class MonitoringCoordinator {
             return;
         }
 
-        if (now - lastSystemSampleMs >= sampleIntervalMs(settings)) {
+        if (now - lastSystemSampleMs >= optimizationPolicy.sampleIntervalMs(settings)) {
             var snapshot = systemCollector.collect();
             var pluginResourceSample = pluginResourceSampler.sample(
                 now, settings.isPluginResourceSamplingEnabled(),
-                settings.getPluginResourceMaxThreads());
+                optimizationPolicy.pluginResourceMaxThreads(settings));
             if (state.updateSystem(snapshot)) {
                 events.record("collector", "info", "system", "监控采集任务已恢复",
                     "系统与 JVM 指标采集恢复正常");
             }
-            alertEngine.evaluate(AlertEvaluationInputMapper.from(snapshot, requestSnapshot),
+            alertEngine.evaluate(advancedSignals.enrich(AlertEvaluationInputMapper.from(snapshot, requestSnapshot)),
                 settingsService.alerts());
             lastSystemSampleMs = now;
             updateCapacityState();
@@ -345,11 +355,6 @@ public class MonitoringCoordinator {
             log.warn("Dropped {} Insight metric aggregates because history buffering reached its "
                 + "limit or capacity-based writes were paused", dropped);
         }
-    }
-
-    private static long sampleIntervalMs(CollectionSettings settings) {
-        return Duration.ofSeconds(Math.max(5, Math.min(300, settings.getSamplingSeconds())))
-            .toMillis();
     }
 
     private static int clampDays(int value, int minimum, int maximum) {

@@ -40,7 +40,11 @@ public class MonitoringExportService {
         new ExportTable(
             "resourceAttributionMetrics", "resource_attribution_minute", "bucket_start_ms"),
         new ExportTable("events", "monitor_event", "occurred_at_ms"),
-        new ExportTable("alerts", "alert_incident", "updated_at_ms")
+        new ExportTable("alerts", "alert_incident", "updated_at_ms"),
+        new ExportTable("diagnostics", "diagnostic_record", "updated_at_ms", "*",
+            "kind IN ('memory','tasks','optimization-observation')"),
+        new ExportTable("notificationDeliveries", "notification_delivery", "updated_at_ms",
+            "id,channel,state,attempts,next_at_ms,created_at_ms,updated_at_ms,message", "1=1")
     );
 
     private final SqliteConnectionManager connectionManager;
@@ -105,7 +109,7 @@ public class MonitoringExportService {
         try (OutputStream output = lease.openOutput();
              JsonGenerator json = objectMapper.getFactory().createGenerator(output)) {
             json.writeStartObject();
-            json.writeNumberField("schemaVersion", 3);
+            json.writeNumberField("schemaVersion", 5);
             json.writeNumberField("generatedAtMs", generatedAtMs);
             json.writeStringField("range", range.name());
             json.writeNumberField("fromMs", range.fromMs());
@@ -133,9 +137,10 @@ public class MonitoringExportService {
         ApiTimeRange range
     ) throws SQLException, IOException {
         json.writeArrayFieldStart(table.jsonName());
-        String sql = "SELECT * FROM " + table.tableName()
+        String sql = "SELECT " + table.columns() + " FROM " + table.tableName()
             + " WHERE " + table.timeColumn() + " >= " + range.fromMs()
             + " AND " + table.timeColumn() + " < " + range.toMs()
+            + " AND " + table.condition()
             + " ORDER BY " + table.timeColumn() + " ASC";
         try (Statement statement = connection.createStatement();
              ResultSet rows = statement.executeQuery(sql)) {
@@ -217,5 +222,9 @@ public class MonitoringExportService {
         }
     }
 
-    private record ExportTable(String jsonName, String tableName, String timeColumn) {}
+    private record ExportTable(String jsonName, String tableName, String timeColumn, String columns, String condition) {
+        ExportTable(String jsonName, String tableName, String timeColumn) {
+            this(jsonName, tableName, timeColumn, "*", "1=1");
+        }
+    }
 }

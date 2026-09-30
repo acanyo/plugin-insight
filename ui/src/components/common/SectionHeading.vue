@@ -24,7 +24,7 @@ defineProps<{
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 11px 14px;
+  padding: 10px 15px;
   border-bottom: 1px solid var(--insight-border);
 }
 
@@ -36,15 +36,15 @@ h2 {
   margin: 0;
   color: var(--insight-ink);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 680;
   line-height: 20px;
 }
 
 p {
   margin: 2px 0 0;
   color: var(--insight-muted);
-  font-size: 12px;
-  line-height: 17px;
+  font-size: var(--insight-text-xs);
+  line-height: 16px;
 }
 
 .section-heading__actions {

@@ -9,10 +9,13 @@ import type {
   EventQuery,
   MonitorEvent,
   NotificationResult,
+  OptimizationStatus,
   OverviewResponse,
+  PluginConsumerItem,
   PluginRankingItem,
   PluginSort,
   RequestRouteItem,
+  RequestRouteSort,
   TimeRange,
   TrendsResponse,
 } from '@/types/insight'
@@ -54,12 +57,50 @@ export async function fetchPlugins(
   return data
 }
 
+export async function fetchConsumers(
+  range: TimeRange,
+  signal?: AbortSignal,
+): Promise<PluginConsumerItem[]> {
+  const { data } = await axiosInstance.get<PluginConsumerItem[]>(`${API_BASE}/consumers`, {
+    params: { range },
+    ...readRequest(signal),
+  })
+  return data
+}
+
+export async function fetchOptimization(signal?: AbortSignal): Promise<OptimizationStatus> {
+  const { data } = await axiosInstance.get<OptimizationStatus>(
+    `${API_BASE}/optimization`,
+    readRequest(signal),
+  )
+  return data
+}
+
+export async function applyOptimization(): Promise<OptimizationStatus> {
+  const { data } = await axiosInstance.post<OptimizationStatus>(
+    `${API_BASE}/optimization/apply`,
+    undefined,
+    { timeout: COMMAND_TIMEOUT_MS },
+  )
+  return data
+}
+
+export async function rollbackOptimization(): Promise<OptimizationStatus> {
+  const { data } = await axiosInstance.post<OptimizationStatus>(
+    `${API_BASE}/optimization/rollback`,
+    undefined,
+    { timeout: COMMAND_TIMEOUT_MS },
+  )
+  return data
+}
+
 export async function fetchRoutes(
   range: TimeRange,
+  sort: RequestRouteSort,
   signal?: AbortSignal,
 ): Promise<RequestRouteItem[]> {
   const { data } = await axiosInstance.get<RequestRouteItem[]>(`${API_BASE}/routes`, {
-    params: { range, sort: 'p95' },
+    params: { range, sort },
     ...readRequest(signal),
   })
   return data
@@ -129,9 +170,7 @@ export async function deleteData(scope: string): Promise<ClearDataResponse> {
 
 function unquoteFileName(value: string): string {
   const trimmed = value.trim()
-  return trimmed.startsWith('"') && trimmed.endsWith('"')
-    ? trimmed.slice(1, -1)
-    : trimmed
+  return trimmed.startsWith('"') && trimmed.endsWith('"') ? trimmed.slice(1, -1) : trimmed
 }
 
 function decodeFileName(value: string): string {
@@ -147,9 +186,7 @@ export function resolveExportFileName(
   range: TimeRange,
   now = new Date(),
 ): string {
-  const extended = contentDisposition?.match(
-    /filename\*\s*=\s*(?:UTF-8'')?("[^"]*"|[^;]+)/i,
-  )?.[1]
+  const extended = contentDisposition?.match(/filename\*\s*=\s*(?:UTF-8'')?("[^"]*"|[^;]+)/i)?.[1]
   if (extended) return decodeFileName(unquoteFileName(extended))
 
   const plain = contentDisposition?.match(/(?:^|;)\s*filename\s*=\s*("[^"]*"|[^;]+)/i)?.[1]

@@ -3,9 +3,12 @@ kind: ReasonType
 metadata:
   name: insight-alert-state-changed
 spec:
-  displayName: Insight 运行监控告警
-  description: 当 Insight 检测到运行指标告警、告警恢复或发送测试通知时触发
+  displayName: Halo Insight 运行洞察告警
+  description: 当 Halo Insight 检测到运行指标告警、告警恢复或发送测试通知时触发
   properties:
+    - name: incidentId
+      type: string
+      description: Insight 告警事件 ID
     - name: targetUser
       type: string
       description: 通知接收用户名

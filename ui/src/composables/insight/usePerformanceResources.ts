@@ -1,10 +1,12 @@
 import { ref, type Ref } from 'vue'
 
-import { fetchPlugins, fetchRoutes, fetchTrends } from '@/api/insight'
+import { fetchConsumers, fetchPlugins, fetchRoutes, fetchTrends } from '@/api/insight'
 import type {
+  PluginConsumerItem,
   PluginRankingItem,
   PluginSort,
   RequestRouteItem,
+  RequestRouteSort,
   TimeRange,
   TrendsResponse,
 } from '@/types/insight'
@@ -15,11 +17,14 @@ import { createResource, loadLatestResource } from './resourceState'
 export function usePerformanceResources(range: Ref<TimeRange>) {
   const trends = createResource<TrendsResponse>()
   const plugins = createResource<PluginRankingItem[]>()
+  const consumers = createResource<PluginConsumerItem[]>()
   const routes = createResource<RequestRouteItem[]>()
   const pluginSort = ref<PluginSort>('load')
+  const routeSort = ref<RequestRouteSort>('slow')
 
   const trendRequests = createLatestRequestChannel()
   const pluginRequests = createLatestRequestChannel()
+  const consumerRequests = createLatestRequestChannel()
   const routeRequests = createLatestRequestChannel()
 
   function refreshTrends(requestedRange = range.value, silent = false): Promise<boolean> {
@@ -33,20 +38,27 @@ export function usePerformanceResources(range: Ref<TimeRange>) {
 
   async function refreshPerformance(
     requestedRange = range.value,
-    requestedSort = pluginSort.value,
+    requestedPluginSort = pluginSort.value,
+    requestedRouteSort = routeSort.value,
     silent = false,
   ): Promise<boolean> {
     const results = await Promise.all([
       loadLatestResource(
         plugins,
         pluginRequests,
-        (signal) => fetchPlugins(requestedRange, requestedSort, signal),
+        (signal) => fetchPlugins(requestedRange, requestedPluginSort, signal),
+        silent,
+      ),
+      loadLatestResource(
+        consumers,
+        consumerRequests,
+        (signal) => fetchConsumers(requestedRange, signal),
         silent,
       ),
       loadLatestResource(
         routes,
         routeRequests,
-        (signal) => fetchRoutes(requestedRange, signal),
+        (signal) => fetchRoutes(requestedRange, requestedRouteSort, signal),
         silent,
       ),
     ])
@@ -61,20 +73,32 @@ export function usePerformanceResources(range: Ref<TimeRange>) {
     )
   }
 
+  function refreshRoutes(): Promise<boolean> {
+    const requestedRange = range.value
+    const requestedSort = routeSort.value
+    return loadLatestResource(routes, routeRequests, (signal) =>
+      fetchRoutes(requestedRange, requestedSort, signal),
+    )
+  }
+
   function abortPerformanceRequests() {
     trendRequests.abort()
     pluginRequests.abort()
+    consumerRequests.abort()
     routeRequests.abort()
   }
 
   return {
     trends,
     plugins,
+    consumers,
     routes,
     pluginSort,
+    routeSort,
     refreshTrends,
     refreshPerformance,
     refreshPlugins,
+    refreshRoutes,
     abortPerformanceRequests,
   }
 }

@@ -1,6 +1,6 @@
 import { definePlugin } from '@halo-dev/ui-shared'
 import { markRaw } from 'vue'
-import RiPulseLine from '~icons/ri/pulse-line'
+import RiRadarLine from '~icons/ri/radar-line'
 
 import { INSIGHT_VIEW_PERMISSION } from '@/constants/permissions'
 
@@ -14,13 +14,13 @@ export default definePlugin({
         name: 'Insight',
         component: () => import(/* webpackChunkName: "HomeView" */ './views/HomeView.vue'),
         meta: {
-          title: '运行监控',
+          title: '运行洞察',
           searchable: true,
           permissions: [INSIGHT_VIEW_PERMISSION],
           menu: {
-            name: '运行监控',
+            name: '运行洞察',
             group: 'tool',
-            icon: markRaw(RiPulseLine),
+            icon: markRaw(RiRadarLine),
             priority: 30,
           },
         },

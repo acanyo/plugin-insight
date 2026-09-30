@@ -1,29 +1,31 @@
 .insight-shell {
-  --insight-canvas: #f6f7f8;
+  --insight-canvas: #f5f6f8;
   --insight-surface: #ffffff;
-  --insight-surface-muted: #f9fafb;
-  --insight-ink: #18181b;
-  --insight-muted: #66707c;
-  --insight-subtle: #929aa5;
-  --insight-border: #e2e5e9;
-  --insight-border-strong: #cfd4da;
-  --insight-green: #16845b;
-  --insight-green-soft: #e9f6f0;
-  --insight-amber: #a96614;
-  --insight-amber-soft: #fff5df;
-  --insight-red: #bf3f45;
-  --insight-red-soft: #fff0f1;
-  --insight-cyan: #087a8e;
-  --insight-cyan-soft: #e8f7fa;
+  --insight-surface-muted: #f8fafc;
+  --insight-ink: #111827;
+  --insight-muted: #4b5563;
+  --insight-subtle: #6b7280;
+  --insight-text-xs: 11px;
+  --insight-text-sm: 12px;
+  --insight-text-base: 13px;
+  --insight-border: #e5e7eb;
+  --insight-border-strong: #d1d5db;
+  --insight-primary: rgb(var(--colors-secondary, 37 99 235) / 1);
+  --insight-primary-soft: rgb(var(--colors-secondary, 37 99 235) / 8%);
+  --insight-green: #16a34a;
+  --insight-green-soft: #f0fdf4;
+  --insight-amber: #ca8a04;
+  --insight-amber-soft: #fefce8;
+  --insight-red: #dc2626;
+  --insight-red-soft: #fef2f2;
   min-height: 100%;
   color: var(--insight-ink);
   background: var(--insight-canvas);
   font-family:
-    Inter,
     ui-sans-serif,
-    system-ui,
     -apple-system,
     BlinkMacSystemFont,
+    'PingFang SC',
     'Segoe UI',
     sans-serif;
   letter-spacing: 0;
@@ -43,12 +45,12 @@
 }
 
 .insight-shell :where(button, a, select):focus-visible {
-  outline: 2px solid var(--insight-cyan);
+  outline: 2px solid var(--insight-primary);
   outline-offset: 2px;
 }
 
 .insight-mono {
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   font-variant-numeric: tabular-nums;
 }
 
@@ -58,6 +60,7 @@
   border: 1px solid var(--insight-border);
   border-radius: 6px;
   background: var(--insight-surface);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
 }
 
 .insight-refresh-error {
@@ -78,7 +81,7 @@
 
 .insight-table th,
 .insight-table td {
-  padding: 11px 14px;
+  padding: 11px 15px;
   border-bottom: 1px solid var(--insight-border);
   text-align: left;
   vertical-align: middle;
@@ -97,7 +100,7 @@
 }
 
 .insight-table tbody tr:hover {
-  background: #fbfcfc;
+  background: #f9fafb;
 }
 
 .insight-numeric {

@@ -35,23 +35,23 @@ defineEmits<{ 'update:modelValue': [value: string] }>()
 <style scoped>
 .segmented {
   display: inline-flex;
-  min-height: 34px;
+  min-height: 32px;
   align-items: stretch;
-  padding: 3px;
+  padding: 2px;
   border: 1px solid var(--insight-border);
   border-radius: 6px;
-  background: #eef0f2;
+  background: #f3f4f6;
 }
 
 .segmented__item {
-  min-width: 68px;
-  padding: 5px 10px;
+  min-width: 64px;
+  padding: 4px 9px;
   border: 0;
   border-radius: 4px;
   color: var(--insight-muted);
   background: transparent;
   font: inherit;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 18px;
   cursor: pointer;
@@ -62,14 +62,14 @@ defineEmits<{ 'update:modelValue': [value: string] }>()
 }
 
 .segmented__item--active {
-  color: var(--insight-ink);
+  color: var(--insight-primary);
   background: var(--insight-surface);
-  box-shadow: 0 1px 2px rgb(24 24 27 / 8%);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 10%);
 }
 
 .segmented--compact .segmented__item {
-  min-width: 54px;
-  padding-inline: 8px;
+  min-width: 50px;
+  padding-inline: 7px;
 }
 
 @media (max-width: 640px) {

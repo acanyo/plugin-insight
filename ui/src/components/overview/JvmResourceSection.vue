@@ -2,7 +2,9 @@
 import { computed } from 'vue'
 
 import SectionHeading from '@/components/common/SectionHeading.vue'
-import ResourceDetailGrid, { type ResourceDetail } from '@/components/overview/ResourceDetailGrid.vue'
+import ResourceDetailGrid, {
+  type ResourceDetail,
+} from '@/components/overview/ResourceDetailGrid.vue'
 import ResourceMeter from '@/components/overview/ResourceMeter.vue'
 import ResourceSectionLayout from '@/components/overview/ResourceSectionLayout.vue'
 import type { OverviewResponse } from '@/types/insight'
@@ -13,7 +15,8 @@ const props = defineProps<{ overview: OverviewResponse }>()
 const systemMemoryPercent = computed(() =>
   props.overview.runtime.systemMemoryTotalBytes
     ? ratioToPercent(
-        props.overview.runtime.systemMemoryUsedBytes / props.overview.runtime.systemMemoryTotalBytes,
+        props.overview.runtime.systemMemoryUsedBytes /
+          props.overview.runtime.systemMemoryTotalBytes,
       )
     : 0,
 )
@@ -37,11 +40,18 @@ const details = computed<ResourceDetail[]>(() => [
 
 <template>
   <section class="insight-section">
-    <SectionHeading title="JVM 与宿主资源" description="内存、线程与垃圾回收" />
+    <SectionHeading
+      title="JVM 与宿主资源"
+      description="内存、线程与垃圾回收；Linux 系统内存按 MemAvailable 口径计算"
+    />
     <ResourceSectionLayout>
       <template #meters>
         <ResourceMeter label="JVM 堆" :value="overview.jvm.heapUsedPercent" />
-        <ResourceMeter label="系统内存" :value="systemMemoryPercent" />
+        <ResourceMeter
+          label="系统内存"
+          :value="systemMemoryPercent"
+          :detail="`${formatBytes(overview.runtime.systemMemoryUsedBytes)} / ${formatBytes(overview.runtime.systemMemoryTotalBytes)} · 可用内存口径`"
+        />
       </template>
       <ResourceDetailGrid :items="details" />
     </ResourceSectionLayout>

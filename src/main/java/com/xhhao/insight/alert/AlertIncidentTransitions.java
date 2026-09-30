@@ -1,7 +1,6 @@
 package com.xhhao.insight.alert;
 
 import com.xhhao.insight.storage.model.AlertIncident;
-import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -13,18 +12,19 @@ final class AlertIncidentTransitions {
 
     static AlertIncident open(
         AlertRule rule,
-        double value,
+        AlertEvaluationInput input,
         double threshold,
         long breachedAtMs,
         long nowMs
     ) {
+        double value = rule.currentValue(input);
         return new AlertIncident(
             UUID.randomUUID().toString(),
             rule.ruleId(),
             AlertStatus.OPEN.name(),
             rule.severity(),
             rule.title(),
-            rule.activeSummary(value, threshold),
+            rule.activeSummary(input, threshold),
             fingerprint(rule),
             breachedAtMs,
             nowMs,
@@ -32,24 +32,25 @@ final class AlertIncidentTransitions {
             1,
             value,
             threshold,
-            details(rule, value, threshold)
+            AlertIncidentDetailsEncoder.encode(rule, input, threshold)
         );
     }
 
     static AlertIncident update(
         AlertIncident incident,
         AlertRule rule,
-        double value,
+        AlertEvaluationInput input,
         double threshold,
         long nowMs
     ) {
+        double value = rule.currentValue(input);
         return new AlertIncident(
             incident.id(),
             incident.ruleId(),
             incident.status(),
             incident.severity(),
             incident.title(),
-            rule.activeSummary(value, threshold),
+            rule.activeSummary(input, threshold),
             incident.fingerprint(),
             incident.triggeredAtMs(),
             nowMs,
@@ -57,17 +58,21 @@ final class AlertIncidentTransitions {
             increment(incident.occurrenceCount()),
             value,
             threshold,
-            details(rule, value, threshold)
+            AlertIncidentDetailsEncoder.encode(rule, input, threshold)
         );
     }
 
     static AlertIncident resolve(
         AlertIncident incident,
         AlertRule rule,
-        double value,
+        AlertEvaluationInput input,
         double threshold,
         long nowMs
     ) {
+        double value = rule.currentValue(input);
+        String details = rule == AlertRule.DEPENDENCY_FAILURE
+            ? incident.detailsJson()
+            : AlertIncidentDetailsEncoder.encode(rule, input, threshold);
         return new AlertIncident(
             incident.id(),
             incident.ruleId(),
@@ -82,7 +87,7 @@ final class AlertIncidentTransitions {
             incident.occurrenceCount(),
             value,
             threshold,
-            details(rule, value, threshold)
+            details
         );
     }
 
@@ -113,9 +118,4 @@ final class AlertIncidentTransitions {
         return value == Long.MAX_VALUE ? value : value + 1;
     }
 
-    private static String details(AlertRule rule, double value, double threshold) {
-        return String.format(Locale.ROOT,
-            "{\"metric\":\"%s\",\"unit\":\"%s\",\"value\":%.4f,\"threshold\":%.4f}",
-            rule.metricKey(), rule.unit(), value, threshold);
-    }
 }

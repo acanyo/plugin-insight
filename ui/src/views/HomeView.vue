@@ -1,19 +1,29 @@
 <script setup lang="ts">
-import { Dialog, VAlert, VButton, VPageHeader, VSpace } from '@halo-dev/components'
+import { Dialog, VAlert, VButton, VPageHeader } from '@halo-dev/components'
 import { computed, ref, type Component } from 'vue'
 import RiAlarmWarningLine from '~icons/ri/alarm-warning-line'
 import RiDashboardLine from '~icons/ri/dashboard-line'
 import RiDownload2Line from '~icons/ri/download-2-line'
+import RiLineChartLine from '~icons/ri/line-chart-line'
 import RiPulseLine from '~icons/ri/pulse-line'
+import RiRadarLine from '~icons/ri/radar-line'
 import RiRefreshLine from '~icons/ri/refresh-line'
 import RiTimeLine from '~icons/ri/time-line'
 
 import SegmentedControl from '@/components/common/SegmentedControl.vue'
+import StatusBadge from '@/components/common/StatusBadge.vue'
 import HealthRail from '@/components/dashboard/HealthRail.vue'
+import OptimizationModal from '@/components/optimization/OptimizationModal.vue'
 import { useInsightDashboard } from '@/composables/useInsightDashboard'
 import { REQUEST_HEALTH_THRESHOLDS } from '@/constants/monitoring'
 import { INSIGHT_MANAGE_PERMISSION } from '@/constants/permissions'
-import type { DashboardTab, HealthRailItem, HealthStatus, TimeRange } from '@/types/insight'
+import type {
+  DashboardTab,
+  HealthRailItem,
+  HealthStatus,
+  PluginConsumerItem,
+  TimeRange,
+} from '@/types/insight'
 import { DASHBOARD_TAB_OPTIONS, TIME_RANGE_OPTIONS } from '@/types/insight'
 import {
   formatBytes,
@@ -23,11 +33,14 @@ import {
   formatNumber,
   formatPercent,
 } from '@/utils/format'
+import { summarizeAlerts } from '@/utils/alertStatus'
+import { resolveCollectorSignal } from '@/utils/collectorHealth'
 import { resolveRuntimeHealth } from '@/utils/overviewHealth'
 import AlertsPanel from '@/views/panels/AlertsPanel.vue'
 import EventsPanel from '@/views/panels/EventsPanel.vue'
 import OverviewPanel from '@/views/panels/OverviewPanel.vue'
 import PerformancePanel from '@/views/panels/PerformancePanel.vue'
+import DiagnosticsPanel from '@/views/panels/DiagnosticsPanel.vue'
 
 import '@/styles/insight.css'
 
@@ -38,10 +51,13 @@ const {
   overview,
   trends,
   plugins,
+  consumers,
   routes,
   alerts,
   events,
+  optimization,
   pluginSort,
+  routeSort,
   alertStatus,
   eventFilters,
   lastUpdatedAt,
@@ -53,6 +69,9 @@ const {
   loadingMoreAlerts,
   hasMoreAlerts,
   acknowledgingAlertIds,
+  applyingOptimization,
+  rollingBackOptimization,
+  disablingPluginId,
   refresh,
   loadMoreEvents,
   loadMoreAlerts,
@@ -60,6 +79,9 @@ const {
   sendTestNotification,
   clearMonitoringData,
   exportData,
+  applyOptimization,
+  rollbackOptimization,
+  disablePlugin,
 } = useInsightDashboard(activeTab, range)
 
 const overviewData = overview.data
@@ -71,6 +93,9 @@ const trendsError = trends.error
 const pluginsData = plugins.data
 const pluginsLoading = plugins.loading
 const pluginsError = plugins.error
+const consumersData = consumers.data
+const consumersLoading = consumers.loading
+const consumersError = consumers.error
 const routesData = routes.data
 const routesLoading = routes.loading
 const routesError = routes.error
@@ -80,31 +105,151 @@ const alertsError = alerts.error
 const eventsData = events.data
 const eventsLoading = events.loading
 const eventsError = events.error
+const optimizationData = optimization.data
+const optimizationLoading = optimization.loading
+const optimizationError = optimization.error
+const optimizationVisible = ref(false)
+
+const activeAlertSummary = computed(() => summarizeAlerts(overviewData.value?.activeAlerts ?? []))
+const collectorSignal = computed(() => resolveCollectorSignal(overviewData.value))
+const supportsHistoricalRange = computed(
+  () => activeTab.value === 'overview' || activeTab.value === 'performance',
+)
+const selectedRangeLabel = computed(
+  () => TIME_RANGE_OPTIONS.find((option) => option.value === range.value)?.label ?? range.value,
+)
+const historicalRangeLoading = computed(
+  () =>
+    trendsLoading.value ||
+    (activeTab.value === 'performance' &&
+      (pluginsLoading.value || consumersLoading.value || routesLoading.value)),
+)
+const historicalRangeFailed = computed(
+  () =>
+    trendsData.value?.range !== range.value &&
+    Boolean(
+      trendsError.value ||
+      (activeTab.value === 'performance' &&
+        (pluginsError.value || consumersError.value || routesError.value)),
+    ),
+)
+const historicalRangeStatus = computed(() => {
+  if (historicalRangeLoading.value) return `${selectedRangeLabel.value} · 正在载入`
+  if (historicalRangeFailed.value) return `${selectedRangeLabel.value} · 切换失败`
+  if (trendsData.value?.range === range.value) {
+    return `${selectedRangeLabel.value} · 已应用`
+  }
+  return `${selectedRangeLabel.value} · 等待数据`
+})
 
 const tabIcons: Record<DashboardTab, Component> = {
   overview: RiDashboardLine,
-  performance: RiPulseLine,
+  performance: RiLineChartLine,
   alerts: RiAlarmWarningLine,
   events: RiTimeLine,
+  diagnostics: RiRadarLine,
+}
+
+function runtimeHealthExplanation(
+  data: NonNullable<typeof overviewData.value>,
+  status: HealthStatus,
+): string {
+  const reasons: string[] = []
+  if (!data.runtime.running) reasons.push('Halo 运行状态未运行')
+  if (data.runtime.lastCollectionError)
+    reasons.push(`采集异常：${data.runtime.lastCollectionError}`)
+  if (data.jvm.deadlockedThreads > 0) {
+    reasons.push(`检测到 ${data.jvm.deadlockedThreads} 个死锁线程`)
+  }
+  data.dependencies
+    .filter((item) => item.status.toLowerCase() === 'critical')
+    .slice(0, 3)
+    .forEach((item) => reasons.push(`${item.name}：${item.message}`))
+  const activeCriticalAlerts = data.activeAlerts.filter(
+    (alert) => alert.severity.toLowerCase() === 'critical',
+  )
+  if (activeCriticalAlerts.length > 0) {
+    const acknowledgedCritical = activeCriticalAlerts.filter(
+      (alert) => alert.status.toUpperCase() === 'ACKNOWLEDGED',
+    ).length
+    reasons.push(
+      `存在 ${activeCriticalAlerts.length} 条未恢复严重告警${acknowledgedCritical ? `，已确认 ${acknowledgedCritical} 条` : ''}`,
+    )
+  }
+  if (reasons.length) return reasons.join('；')
+  if (status === 'warning') return '存在需要关注的运行状态或后台任务'
+  if (status === 'unknown') return '等待运行时监控样本'
+  return '运行时、采集任务和依赖状态均正常'
+}
+
+function requestHealthExplanation(
+  data: NonNullable<typeof overviewData.value>,
+  status: HealthStatus,
+): string {
+  const reasons: string[] = []
+  if (data.requests.errorRatePercent >= REQUEST_HEALTH_THRESHOLDS.criticalErrorRatePercent) {
+    reasons.push(
+      `错误率 ${formatPercent(data.requests.errorRatePercent)} ≥ 严重阈值 ${formatPercent(REQUEST_HEALTH_THRESHOLDS.criticalErrorRatePercent)}`,
+    )
+  } else if (data.requests.errorRatePercent >= REQUEST_HEALTH_THRESHOLDS.warningErrorRatePercent) {
+    reasons.push(
+      `错误率 ${formatPercent(data.requests.errorRatePercent)} ≥ 关注阈值 ${formatPercent(REQUEST_HEALTH_THRESHOLDS.warningErrorRatePercent)}`,
+    )
+  }
+  if (data.requests.p95Ms >= REQUEST_HEALTH_THRESHOLDS.criticalP95Ms) {
+    reasons.push(
+      `P95 ${formatLatency(data.requests.p95Ms)} ≥ 严重阈值 ${formatLatency(REQUEST_HEALTH_THRESHOLDS.criticalP95Ms)}`,
+    )
+  } else if (data.requests.p95Ms >= REQUEST_HEALTH_THRESHOLDS.warningP95Ms) {
+    reasons.push(
+      `P95 ${formatLatency(data.requests.p95Ms)} ≥ 关注阈值 ${formatLatency(REQUEST_HEALTH_THRESHOLDS.warningP95Ms)}`,
+    )
+  }
+  if (reasons.length) return reasons.join('；')
+  if (status === 'unknown') return '等待请求样本'
+  return '错误率和 P95 延迟均在当前阈值内'
 }
 
 const healthItems = computed<HealthRailItem[]>(() => {
   const data = overviewData.value
   if (!data) {
     return [
-      { key: 'runtime', label: '运行时', status: 'unknown', value: '—', detail: '等待运行指标' },
-      { key: 'storage', label: '监控存储', status: 'unknown', value: '—', detail: '等待存储状态' },
-      { key: 'requests', label: '请求', status: 'unknown', value: '—', detail: '等待请求样本' },
-      { key: 'alerts', label: '当前告警', status: 'unknown', value: '—', detail: '等待告警状态' },
+      {
+        key: 'runtime',
+        label: '运行时',
+        status: 'unknown',
+        value: '—',
+        detail: '等待运行指标',
+        explanation: '等待运行时监控样本',
+      },
+      {
+        key: 'storage',
+        label: '监控存储',
+        status: 'unknown',
+        value: '—',
+        detail: '等待存储状态',
+        explanation: '等待监控存储状态',
+      },
+      {
+        key: 'requests',
+        label: '请求',
+        status: 'unknown',
+        value: '—',
+        detail: '等待请求样本',
+        explanation: '等待请求样本',
+      },
+      {
+        key: 'alerts',
+        label: '待处理告警',
+        status: 'unknown',
+        value: '—',
+        detail: '等待告警状态',
+        explanation: '等待告警状态',
+      },
     ]
   }
 
-  const criticalAlerts = data.activeAlerts.filter(
-    (alert) => alert.severity.toLowerCase() === 'critical',
-  ).length
-  const warningAlerts = data.activeAlerts.filter(
-    (alert) => alert.severity.toLowerCase() === 'warning',
-  ).length
+  const alertSummary = summarizeAlerts(data.activeAlerts)
   const requestWindowSeconds = Math.max(
     (data.requests.windowToMs - data.requests.windowFromMs) / 1000,
     1,
@@ -128,7 +273,11 @@ const healthItems = computed<HealthRailItem[]>(() => {
         ? 'warning'
         : 'healthy'
   const alertHealth: HealthStatus =
-    criticalAlerts > 0 ? 'critical' : data.activeAlerts.length > 0 ? 'warning' : 'healthy'
+    alertSummary.pendingCritical > 0
+      ? 'critical'
+      : alertSummary.pending.length > 0
+        ? 'warning'
+        : 'healthy'
 
   return [
     {
@@ -137,6 +286,7 @@ const healthItems = computed<HealthRailItem[]>(() => {
       status: runtimeStatus,
       value: formatDurationMs(data.runtime.uptimeMs),
       detail: `Halo ${data.runtime.haloVersion} · Java ${data.runtime.javaVersion}`,
+      explanation: runtimeHealthExplanation(data, runtimeStatus),
     },
     {
       key: 'storage',
@@ -144,6 +294,11 @@ const healthItems = computed<HealthRailItem[]>(() => {
       status: storageStatus,
       value: formatBytes(data.storage.sizeBytes),
       detail: `${data.storage.message} · 上限 ${formatBytes(data.storage.maxSizeBytes)}`,
+      explanation: !data.storage.available
+        ? `监控存储不可用：${data.storage.message}`
+        : data.storage.writePaused
+          ? `历史写入已暂停：${data.storage.message}`
+          : '监控存储可用，历史写入正常',
     },
     {
       key: 'requests',
@@ -151,20 +306,34 @@ const healthItems = computed<HealthRailItem[]>(() => {
       status: requestStatus,
       value: `${formatNumber(data.requests.requestCount / requestWindowSeconds)} req/s`,
       detail: `P95 ${formatLatency(data.requests.p95Ms)} · 错误 ${formatPercent(data.requests.errorRatePercent)}`,
+      explanation: requestHealthExplanation(data, requestStatus),
     },
     {
       key: 'alerts',
-      label: '当前告警',
+      label: '待处理告警',
       status: alertHealth,
-      value: `${data.activeAlerts.length} 条`,
-      detail: `${criticalAlerts} 严重 · ${warningAlerts} 警告`,
+      value: `${alertSummary.pending.length} 条`,
+      detail:
+        alertSummary.pending.length > 0
+          ? `${alertSummary.pendingCritical} 严重 · ${alertSummary.pendingWarning} 警告${alertSummary.acknowledged.length ? ` · 已确认 ${alertSummary.acknowledged.length} 条` : ''}`
+          : alertSummary.acknowledged.length > 0
+            ? `已确认 ${alertSummary.acknowledged.length} 条，持续观察`
+            : '所有规则均已恢复',
+      explanation:
+        alertSummary.pendingCritical > 0
+          ? `存在 ${alertSummary.pendingCritical} 条待处理严重告警`
+          : alertSummary.pending.length > 0
+            ? `存在 ${alertSummary.pending.length} 条待处理告警，需要关注`
+            : alertSummary.acknowledged.length > 0
+              ? `没有待处理告警；已确认 ${alertSummary.acknowledged.length} 条，故障恢复前继续观察，不重复提醒`
+              : '当前没有待处理或持续观察中的告警',
     },
   ]
 })
 
 const updatedLabel = computed(() => {
-  const value = overviewData.value?.generatedAtMs
-  if (value) return `采样于 ${formatDateTime(value)}`
+  const value = overviewData.value?.runtime.lastCollectedAtMs
+  if (value) return `最新样本 ${formatDateTime(value)}`
   if (lastUpdatedAt.value)
     return `刷新于 ${formatDateTime(new Date(lastUpdatedAt.value).toISOString())}`
   return '30 秒自动刷新'
@@ -172,6 +341,25 @@ const updatedLabel = computed(() => {
 
 function selectTab(tab: DashboardTab) {
   activeTab.value = tab
+}
+
+function openPerformanceDiagnosis() {
+  optimizationVisible.value = true
+  void refresh(true)
+}
+
+function confirmDisablePlugin(consumer: PluginConsumerItem) {
+  Dialog.warning({
+    uniqueId: `insight-disable-plugin-${consumer.pluginId}`,
+    title: `停用 ${consumer.displayName || consumer.pluginId}`,
+    description:
+      '停用插件可能使对应站点功能暂时不可用。确认后 Halo 会停用该插件；请观察至少 5 分钟的 JVM、CPU、GC 与请求趋势，再决定是否重新启用。',
+    confirmText: '停用并观察',
+    confirmType: 'danger',
+    showCancel: true,
+    onConfirm: () =>
+      void disablePlugin(consumer.pluginId, consumer.displayName || consumer.pluginId),
+  })
 }
 
 function confirmClearMonitoringData() {
@@ -188,26 +376,34 @@ function confirmClearMonitoringData() {
 
 <template>
   <div class="insight-shell">
-    <VPageHeader title="运行监控">
+    <VPageHeader title="运行洞察">
       <template #icon>
-        <RiPulseLine class="page-title-icon" />
+        <RiRadarLine class="page-title-icon" />
       </template>
       <template #actions>
-        <VSpace class="page-actions">
-          <span class="updated-at insight-mono">{{ updatedLabel }}</span>
-          <VButton type="secondary" :loading="refreshing" @click="refresh()">
+        <div class="page-actions">
+          <div class="collection-state" :title="collectorSignal.message">
+            <StatusBadge :tone="collectorSignal.status" :label="collectorSignal.label" animate />
+            <span class="updated-at insight-mono">{{ updatedLabel }}</span>
+          </div>
+          <VButton type="primary" size="sm" :loading="refreshing" @click="refresh()">
             <template #icon><RiRefreshLine /></template>
-            刷新
+            {{ refreshing ? '刷新中' : '刷新' }}
+          </VButton>
+          <VButton size="sm" @click="openPerformanceDiagnosis">
+            <template #icon><RiPulseLine /></template>
+            性能诊断
           </VButton>
           <VButton
             v-permission="[INSIGHT_MANAGE_PERMISSION]"
+            size="sm"
             :loading="exporting"
             @click="exportData"
           >
             <template #icon><RiDownload2Line /></template>
-            导出
+            {{ exporting ? '导出中' : '导出' }}
           </VButton>
-        </VSpace>
+        </div>
       </template>
     </VPageHeader>
 
@@ -235,19 +431,30 @@ function confirmClearMonitoringData() {
             <component :is="tabIcons[tab.value]" aria-hidden="true" />
             <span>{{ tab.label }}</span>
             <span
-              v-if="tab.value === 'alerts' && overviewData?.activeAlerts.length"
+              v-if="tab.value === 'alerts' && activeAlertSummary.pending.length"
               class="tab-count insight-mono"
             >
-              {{ overviewData.activeAlerts.length }}
+              {{ activeAlertSummary.pending.length }}
             </span>
           </button>
         </nav>
-        <SegmentedControl
-          v-model="range"
-          :options="TIME_RANGE_OPTIONS"
-          control-label="监控时间范围"
-          compact
-        />
+        <div v-if="supportsHistoricalRange" class="range-control">
+          <div class="range-control__copy">
+            <span>历史统计范围</span>
+            <small
+              aria-live="polite"
+              :class="{ 'range-control__status--error': historicalRangeFailed }"
+            >
+              {{ historicalRangeStatus }}
+            </small>
+          </div>
+          <SegmentedControl
+            v-model="range"
+            :options="TIME_RANGE_OPTIONS"
+            control-label="监控时间范围"
+            compact
+          />
+        </div>
       </div>
 
       <OverviewPanel
@@ -266,19 +473,25 @@ function confirmClearMonitoringData() {
       <PerformancePanel
         v-else-if="activeTab === 'performance'"
         :plugins="pluginsData"
+        :consumers="consumersData"
         :routes="routesData"
         :plugin-sort="pluginSort"
+        :route-sort="routeSort"
         :plugins-loading="pluginsLoading"
+        :consumers-loading="consumersLoading"
         :routes-loading="routesLoading"
         :plugins-error="pluginsError"
+        :consumers-error="consumersError"
         :routes-error="routesError"
         @retry="refresh()"
         @update:plugin-sort="pluginSort = $event"
+        @update:route-sort="routeSort = $event"
       />
 
       <AlertsPanel
         v-else-if="activeTab === 'alerts'"
         :alerts="alertsData"
+        :active-alerts="overviewData?.activeAlerts"
         :status="alertStatus"
         :loading="alertsLoading"
         :error="alertsError"
@@ -294,7 +507,7 @@ function confirmClearMonitoringData() {
       />
 
       <EventsPanel
-        v-else
+        v-else-if="activeTab === 'events'"
         :events="eventsData"
         :loading="eventsLoading"
         :loading-more="loadingMoreEvents"
@@ -306,7 +519,23 @@ function confirmClearMonitoringData() {
         @update:event-type="eventFilters.type = $event"
         @update:severity="eventFilters.severity = $event"
       />
+      <DiagnosticsPanel v-else-if="activeTab === 'diagnostics'" />
     </main>
+
+    <OptimizationModal
+      v-if="optimizationVisible"
+      :status="optimizationData"
+      :loading="optimizationLoading"
+      :error="optimizationError"
+      :applying="applyingOptimization"
+      :rolling-back="rollingBackOptimization"
+      :disabling-plugin-id="disablingPluginId"
+      @close="optimizationVisible = false"
+      @retry="refresh()"
+      @apply="applyOptimization"
+      @rollback="rollbackOptimization"
+      @disable-plugin="confirmDisablePlugin"
+    />
   </div>
 </template>
 
@@ -315,40 +544,49 @@ function confirmClearMonitoringData() {
   width: 20px;
   height: 20px;
   margin-right: 8px;
-  align-self: center;
-  color: var(--insight-cyan);
-}
-
-.page-actions {
-  flex-wrap: wrap;
+  color: #1f2937;
 }
 
 .updated-at {
-  align-self: center;
   color: var(--insight-muted);
-  font-size: 10px;
+  font-size: var(--insight-text-xs);
+  line-height: 16px;
   white-space: nowrap;
+}
+
+.page-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.collection-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: 2px;
 }
 
 .insight-content {
   display: flex;
-  max-width: 1680px;
+  max-width: 1640px;
   flex-direction: column;
   gap: 14px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 18px 18px 28px;
 }
 
 .monitor-toolbar {
   display: flex;
-  min-height: 48px;
+  min-height: 46px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 6px;
-  border: 1px solid var(--insight-border);
-  border-radius: 6px;
-  background: var(--insight-surface);
+  padding: 0 2px;
+  border-bottom: 1px solid var(--insight-border);
+  background: transparent;
 }
 
 .monitor-tabs {
@@ -361,20 +599,20 @@ function confirmClearMonitoringData() {
 .monitor-tabs__item {
   position: relative;
   display: inline-flex;
-  min-width: 94px;
-  min-height: 36px;
+  min-width: 88px;
+  min-height: 44px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 7px 12px;
+  padding: 8px 12px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
   color: var(--insight-muted);
   background: transparent;
   font: inherit;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 620;
   cursor: pointer;
 }
 
@@ -384,8 +622,8 @@ function confirmClearMonitoringData() {
 }
 
 .monitor-tabs__item--active {
-  color: var(--insight-ink);
-  background: #eef4f5;
+  color: var(--insight-primary);
+  background: transparent;
 }
 
 .monitor-tabs__item--active::after {
@@ -394,7 +632,7 @@ function confirmClearMonitoringData() {
   bottom: 0;
   left: 10px;
   height: 2px;
-  background: var(--insight-cyan);
+  background: var(--insight-primary);
   content: '';
 }
 
@@ -410,22 +648,69 @@ function confirmClearMonitoringData() {
   align-items: center;
   justify-content: center;
   padding: 0 5px;
-  border-radius: 9px;
+  border-radius: 3px;
   color: #ffffff;
   background: var(--insight-red);
   font-size: 9px;
+}
+
+.range-control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.range-control__copy {
+  display: flex;
+  min-width: 104px;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.range-control__copy > span {
+  color: var(--insight-subtle);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.range-control__copy > small {
+  color: var(--insight-primary);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.range-control__status--error {
+  color: var(--insight-red) !important;
 }
 
 @media (max-width: 920px) {
   .monitor-toolbar {
     align-items: stretch;
     flex-direction: column;
+    border-bottom: 0;
+    gap: 8px;
+  }
+
+  .range-control {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .range-control__copy {
+    min-width: 0;
   }
 }
 
 @media (max-width: 640px) {
   .insight-content {
-    padding: 10px;
+    padding: 12px 10px 20px;
+  }
+
+  .collection-state {
+    display: none;
   }
 
   .monitor-tabs {
@@ -437,9 +722,8 @@ function confirmClearMonitoringData() {
     flex: 1 0 auto;
   }
 
-  .updated-at {
+  .range-control {
     width: 100%;
-    order: 3;
   }
 }
 </style>

@@ -10,6 +10,7 @@ record ApiTimeRange(String name, long fromMs, long toMs) {
             ? "1h" : value.toLowerCase(Locale.ROOT);
         Duration duration = switch (normalized) {
             case "15m" -> Duration.ofMinutes(15);
+            case "30m" -> Duration.ofMinutes(30);
             case "1h" -> Duration.ofHours(1);
             case "6h" -> Duration.ofHours(6);
             case "24h" -> Duration.ofHours(24);

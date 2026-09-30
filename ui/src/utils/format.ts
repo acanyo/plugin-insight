@@ -74,6 +74,57 @@ export function formatDateTime(value?: string | number | null): string {
   }).format(date)
 }
 
+export function formatTime(value?: string | number | null): string {
+  if (value === undefined || value === null || value === '') return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+export function formatTrendAxisTime(value: number, windowMs: number): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  if (windowMs >= 24 * 60 * 60 * 1000) {
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date)
+  }
+  return formatTime(value)
+}
+
+export function formatTimelineDay(value?: string | number | null): string {
+  if (value === undefined || value === null || value === '') return '未知日期'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+  const dayOffset = Math.round((startOfToday - startOfDate) / 86400000)
+  if (dayOffset === 0) return '今天'
+  if (dayOffset === 1) return '昨天'
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  }).format(date)
+}
+
+export function timelineDayKey(value?: string | number | null): string {
+  if (value === undefined || value === null || value === '') return 'unknown'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+}
+
 export function formatRelativeTime(value?: string | number | null): string {
   if (value === undefined || value === null || value === '') return '暂无记录'
   const timestamp = new Date(value).getTime()

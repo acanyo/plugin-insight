@@ -4,6 +4,7 @@ import com.xhhao.insight.storage.database.SqliteConnectionManager;
 import com.xhhao.insight.storage.model.PluginMetricMinute;
 import com.xhhao.insight.storage.model.PluginMetricSort;
 import com.xhhao.insight.storage.model.PluginMetricSummary;
+import com.xhhao.insight.storage.model.PluginRequestPersistenceSummary;
 import java.sql.PreparedStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -161,6 +162,56 @@ public class PluginMetricRepository {
                     return resultSet.next() ? resultSet.getLong("total_duration_us") : 0L;
                 }
             }
+        });
+    }
+
+    /** Returns minute-level persistence and top-consumer evidence for plugin request work. */
+    public List<PluginRequestPersistenceSummary> findRequestPersistence(
+        long fromInclusiveMs,
+        long toExclusiveMs,
+        int limit
+    ) {
+        QueryRangeValidator.validate(fromInclusiveMs, toExclusiveMs, limit);
+        return connectionManager.read(connection -> {
+            List<PluginRequestPersistenceSummary> summaries = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement("""
+                WITH ranked AS (
+                    SELECT plugin_id, bucket_start_ms, request_count,
+                           request_duration_sum_us,
+                           DENSE_RANK() OVER (
+                               PARTITION BY bucket_start_ms
+                               ORDER BY request_duration_sum_us DESC
+                           ) AS duration_rank
+                    FROM plugin_metric_minute
+                    WHERE bucket_start_ms >= ? AND bucket_start_ms < ?
+                )
+                SELECT plugin_id,
+                       COUNT(*) AS observed_minutes,
+                       SUM(CASE WHEN request_count > 0 THEN 1 ELSE 0 END) AS active_minutes,
+                       SUM(CASE WHEN duration_rank = 1 AND request_duration_sum_us > 0
+                           THEN 1 ELSE 0 END) AS top_duration_minutes,
+                       SUM(request_count) AS request_count,
+                       SUM(request_duration_sum_us) AS request_duration_sum_us
+                FROM ranked
+                GROUP BY plugin_id
+                ORDER BY plugin_id ASC
+                LIMIT ?
+                """)) {
+                statement.setLong(1, fromInclusiveMs);
+                statement.setLong(2, toExclusiveMs);
+                statement.setInt(3, limit);
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        summaries.add(new PluginRequestPersistenceSummary(
+                            rows.getString("plugin_id"), rows.getInt("observed_minutes"),
+                            rows.getInt("active_minutes"), rows.getInt("top_duration_minutes"),
+                            rows.getLong("request_count"),
+                            rows.getLong("request_duration_sum_us")
+                        ));
+                    }
+                }
+            }
+            return summaries;
         });
     }
 

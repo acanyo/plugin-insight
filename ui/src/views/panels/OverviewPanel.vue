@@ -45,14 +45,8 @@ const emit = defineEmits<{
       />
 
       <div class="overview-panel__status-grid">
-        <DependencyStatusSection
-          :dependencies="overview.dependencies"
-          @retry="emit('retry')"
-        />
-        <StatusCodeSection
-          :status-codes="overview.requests.statusCodes"
-          @retry="emit('retry')"
-        />
+        <DependencyStatusSection :dependencies="overview.dependencies" @retry="emit('retry')" />
+        <StatusCodeSection :status-codes="overview.requests.statusCodes" @retry="emit('retry')" />
         <PluginStatusSection
           class="overview-panel__plugin-status"
           :plugins="overview.plugins"
@@ -76,14 +70,14 @@ const emit = defineEmits<{
 .overview-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .overview-panel__status-grid,
 .overview-panel__resource-grid {
   display: grid;
   min-width: 0;
-  gap: 14px;
+  gap: 12px;
 }
 
 .overview-panel__status-grid {

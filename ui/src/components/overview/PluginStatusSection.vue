@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import SectionHeading from '@/components/common/SectionHeading.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import type { AlertIncident, HealthStatus, PluginRuntimeInfo } from '@/types/insight'
+import { summarizeAlerts } from '@/utils/alertStatus'
 import { formatDateTime, severityTone } from '@/utils/format'
 
 const props = defineProps<{
@@ -19,6 +20,8 @@ const summary = computed(() => {
   }).length
   return { total: props.plugins.length, enabled, abnormal }
 })
+
+const alertSummary = computed(() => summarizeAlerts(props.activeAlerts))
 
 const sortedPlugins = computed(() =>
   [...props.plugins].sort((left, right) => {
@@ -66,11 +69,15 @@ function phaseLabel(plugin: PluginRuntimeInfo): string {
         </dd>
       </div>
     </dl>
-    <div v-if="activeAlerts.length" class="active-alert-preview">
-      <div v-for="alert in activeAlerts.slice(0, 3)" :key="alert.id">
+    <div v-if="alertSummary.pending.length" class="active-alert-preview">
+      <div v-for="alert in alertSummary.pending.slice(0, 3)" :key="alert.id">
         <StatusBadge :tone="severityTone(alert.severity)" />
         <span>{{ alert.title }}</span>
       </div>
+    </div>
+    <div v-else-if="alertSummary.acknowledged.length" class="acknowledged-alert-note">
+      <StatusBadge tone="info" label="已确认" />
+      <span>仍有 {{ alertSummary.acknowledged.length }} 条告警等待指标恢复</span>
     </div>
     <details v-if="plugins.length" class="plugin-details">
       <summary>查看 {{ plugins.length }} 个插件明细</summary>
@@ -137,6 +144,17 @@ function phaseLabel(plugin: PluginRuntimeInfo): string {
 
 .active-alert-preview > div:last-child {
   border-bottom: 0;
+}
+
+.acknowledged-alert-note {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--insight-border);
+  color: var(--insight-muted);
+  font-size: 11px;
 }
 
 .active-alert-preview span:last-child {

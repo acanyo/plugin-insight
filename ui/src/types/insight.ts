@@ -1,10 +1,12 @@
 export type HealthStatus = 'healthy' | 'warning' | 'critical' | 'unknown'
 
-export type TimeRange = '15m' | '1h' | '6h' | '24h' | '7d' | '30d'
-export type DashboardTab = 'overview' | 'performance' | 'alerts' | 'events'
+export type TimeRange = '15m' | '30m' | '1h' | '6h' | '24h' | '7d' | '30d'
+export type DashboardTab = 'overview' | 'performance' | 'alerts' | 'events' | 'diagnostics'
 export type Severity = 'info' | 'warning' | 'critical'
 export type AlertStatus = 'open' | 'acknowledged' | 'resolved' | 'all'
 export type PluginSort = 'cpu' | 'memory' | 'threads' | 'load' | 'latency' | 'errors' | 'requests'
+export type RequestRouteSort =
+  'slow' | 'p95' | 'p99' | 'average' | 'max' | 'requests' | 'errors' | 'error-rate'
 
 export interface SelectOption<T extends string> {
   label: string
@@ -13,6 +15,7 @@ export interface SelectOption<T extends string> {
 
 export const TIME_RANGE_OPTIONS: SelectOption<TimeRange>[] = [
   { label: '15 分钟', value: '15m' },
+  { label: '30 分钟', value: '30m' },
   { label: '1 小时', value: '1h' },
   { label: '6 小时', value: '6h' },
   { label: '24 小时', value: '24h' },
@@ -25,6 +28,7 @@ export const DASHBOARD_TAB_OPTIONS: SelectOption<DashboardTab>[] = [
   { label: '性能', value: 'performance' },
   { label: '告警', value: 'alerts' },
   { label: '事件', value: 'events' },
+  { label: '诊断', value: 'diagnostics' },
 ]
 
 export interface RuntimeView {
@@ -85,6 +89,12 @@ export interface DependencyStatus {
   name: string
   status: HealthStatus | string
   message: string
+  providers?: DependencyProvider[]
+}
+
+export interface DependencyProvider {
+  pluginId: string
+  displayName?: string | null
 }
 
 export interface PluginRuntimeInfo {
@@ -134,19 +144,30 @@ export interface SystemTrendPoint {
   timestampMs: number
   processCpuPercent: number
   systemCpuPercent: number
+  systemLoadAverage: number
   heapUsedBytes: number
   heapMaxBytes: number
+  nonHeapUsedBytes: number
   memoryUsedBytes: number
   memoryTotalBytes: number
   diskUsedBytes: number
   diskTotalBytes: number
   liveThreads: number
+  daemonThreads: number
+  peakThreads: number
+  deadlockedThreads: number
+  gcCountDelta: number
   gcPauseMs: number
 }
 
 export interface RequestTrendPoint {
   timestampMs: number
   requestCount: number
+  requestsPerMinute: number
+  clientErrorCount: number
+  clientErrorRatePercent: number
+  serverErrorCount: number
+  serverErrorRatePercent: number
   errorCount: number
   errorRatePercent: number
   averageLatencyMs: number
@@ -187,6 +208,80 @@ export interface PluginRankingItem {
   attributedThreadsMax: number
   cpuAttributionCoveragePercent: number
   allocationAttributionCoveragePercent: number
+}
+
+export type ConsumerPressureLevel = 'none' | 'low' | 'medium' | 'high'
+export type ConsumerResource = 'cpu' | 'memory-allocation' | 'request-time' | 'threads'
+
+export interface PluginConsumerItem {
+  pluginId: string
+  displayName: string
+  enabled: boolean
+  phase: string
+  pressureScore: number
+  pressureLevel: ConsumerPressureLevel
+  dominantResource: ConsumerResource
+  sustained: boolean
+  confidence: 'insufficient' | 'low' | 'medium'
+  observedMinutes: number
+  activeMinutes: number
+  topConsumerMinutes: number
+  persistencePercent: number
+  cpuSharePercent: number
+  allocationSharePercent: number
+  requestLoadSharePercent: number
+  allocatedBytesPerMinute: number
+  attributedThreadsMax: number
+}
+
+export interface OptimizationChange {
+  id: string
+  title: string
+  description: string
+  automatic: boolean
+  applied: boolean
+}
+
+export interface RuntimeFinding {
+  id: string
+  severity: string
+  title: string
+  description: string
+}
+
+export interface RuntimeDiagnosis {
+  gcWindowSufficient?: boolean
+  level: HealthStatus
+  summary: string
+  heapUsedBytes: number
+  heapMaxBytes: number
+  heapUsedPercent: number
+  processCpuPercent: number
+  systemCpuPercent: number
+  gcCount: number
+  gcTimeMs: number
+  gcOverheadPercent: number
+  liveThreads: number
+  deadlockedThreads: number
+  findings: RuntimeFinding[]
+}
+
+export interface OptimizationStatus {
+  mode: 'standard' | 'low-overhead'
+  enabled: boolean
+  canApply: boolean
+  appliedAtMs: number
+  updatedAtMs: number
+  configuredSamplingSeconds: number
+  effectiveSamplingSeconds: number
+  optimizedSamplingSeconds: number
+  configuredPluginThreadLimit: number
+  effectivePluginThreadLimit: number
+  optimizedPluginThreadLimit: number
+  pluginResourceSamplingEnabled: boolean
+  runtime: RuntimeDiagnosis
+  changes: OptimizationChange[]
+  topConsumer?: PluginConsumerItem | null
 }
 
 export interface RequestRouteItem {
@@ -246,6 +341,7 @@ export interface HealthRailItem {
   status: HealthStatus
   value: string
   detail: string
+  explanation?: string
 }
 
 export interface ChartPoint {

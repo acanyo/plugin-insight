@@ -10,10 +10,13 @@ import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import { INSIGHT_MANAGE_PERMISSION } from '@/constants/permissions'
 import type { AlertIncident, AlertStatus, SelectOption } from '@/types/insight'
+import { dependencyAlertDetails, dependencyProviderLabel } from '@/utils/alertDetails'
+import { summarizeAlerts } from '@/utils/alertStatus'
 import { formatDateTime, formatRelativeTime, severityTone } from '@/utils/format'
 
 const props = defineProps<{
   alerts?: AlertIncident[]
+  activeAlerts?: AlertIncident[]
   status: AlertStatus
   loading: boolean
   loadingMore: boolean
@@ -44,11 +47,13 @@ const statusModel = computed({
 })
 
 const summary = computed(() => {
-  const alerts = props.alerts ?? []
-  const active = alerts.filter((alert) => alert.status.toUpperCase() === 'OPEN').length
-  const critical = alerts.filter((alert) => alert.severity.toLowerCase() === 'critical').length
-  const warning = alerts.filter((alert) => alert.severity.toLowerCase() === 'warning').length
-  return { active, critical, warning }
+  return summarizeAlerts(props.activeAlerts ?? [])
+})
+
+const dependencyDetailsByAlertId = computed(() => {
+  return new Map(
+    (props.alerts ?? []).map((alert) => [alert.id, dependencyAlertDetails(alert)] as const),
+  )
 })
 
 function statusLabel(status: string): string {
@@ -63,13 +68,16 @@ function statusLabel(status: string): string {
   <div class="alerts-panel">
     <div v-if="alerts" class="alert-summary" aria-label="告警统计">
       <div>
-        <span>活动</span><strong class="insight-mono">{{ summary.active }}</strong>
+        <span>待处理</span>
+        <strong class="insight-mono warning-text">{{ summary.pending.length }}</strong>
       </div>
       <div>
-        <span>严重</span><strong class="insight-mono critical-text">{{ summary.critical }}</strong>
+        <span>已确认观察</span>
+        <strong class="insight-mono acknowledged-text">{{ summary.acknowledged.length }}</strong>
       </div>
       <div>
-        <span>警告</span><strong class="insight-mono warning-text">{{ summary.warning }}</strong>
+        <span>严重未恢复</span>
+        <strong class="insight-mono critical-text">{{ summary.activeCritical }}</strong>
       </div>
     </div>
 
@@ -119,7 +127,19 @@ function statusLabel(status: string): string {
                 <StatusBadge :tone="severityTone(alert.severity)" />
                 <strong>{{ alert.title }}</strong>
               </div>
-              <p>{{ alert.summary }}</p>
+              <p v-if="!dependencyDetailsByAlertId.get(alert.id)?.length">{{ alert.summary }}</p>
+              <ul v-else class="alert-row__dependencies">
+                <li
+                  v-for="dependency in dependencyDetailsByAlertId.get(alert.id)"
+                  :key="dependency.key"
+                >
+                  <strong>{{ dependency.name }}</strong>
+                  <span>{{ dependency.message }}</span>
+                  <small v-if="dependency.providers?.length">
+                    关联插件：{{ dependency.providers.map(dependencyProviderLabel).join('、') }}
+                  </small>
+                </li>
+              </ul>
               <div class="alert-row__meta">
                 <span>{{ alert.ruleId }}</span>
                 <time :datetime="new Date(alert.triggeredAtMs).toISOString()">{{
@@ -173,14 +193,14 @@ function statusLabel(status: string): string {
 .alerts-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
 .alert-summary {
   display: grid;
   overflow: hidden;
   border: 1px solid var(--insight-border);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--insight-surface);
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -204,8 +224,8 @@ function statusLabel(status: string): string {
 }
 
 .alert-summary strong {
-  font-size: 24px;
-  line-height: 30px;
+  font-size: 22px;
+  line-height: 28px;
 }
 
 .critical-text {
@@ -214,6 +234,10 @@ function statusLabel(status: string): string {
 
 .warning-text {
   color: var(--insight-amber);
+}
+
+.acknowledged-text {
+  color: var(--insight-primary);
 }
 
 .alert-list {
@@ -243,7 +267,7 @@ function statusLabel(status: string): string {
   bottom: 0;
   left: 0;
   width: 3px;
-  background: var(--insight-cyan);
+  background: var(--insight-primary);
   content: '';
 }
 
@@ -282,6 +306,42 @@ function statusLabel(status: string): string {
   line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.alert-row__dependencies {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 7px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.alert-row__dependencies li {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 7px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.alert-row__dependencies li > strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.alert-row__dependencies li > span {
+  min-width: 180px;
+  flex: 1;
+  color: var(--insight-muted);
+}
+
+.alert-row__dependencies li > small {
+  width: 100%;
+  color: var(--insight-subtle);
+  font-size: 10px;
 }
 
 .alert-row__meta {

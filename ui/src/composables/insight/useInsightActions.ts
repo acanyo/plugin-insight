@@ -5,10 +5,7 @@ import { deleteData, downloadExport, testNotifications } from '@/api/insight'
 import type { TimeRange } from '@/types/insight'
 import { errorMessage } from '@/utils/format'
 
-export function useInsightActions(
-  range: Ref<TimeRange>,
-  onDataCleared: () => Promise<unknown>,
-) {
+export function useInsightActions(range: Ref<TimeRange>, onDataCleared: () => Promise<unknown>) {
   const exporting = ref(false)
   const testingNotifications = ref(false)
   const clearingData = ref(false)

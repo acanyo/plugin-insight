@@ -66,6 +66,18 @@ spec:
     - group: alerts
       label: 告警规则
       formSchema:
+        - $formkit: checkbox
+          name: advancedEnabled
+          label: 启用近期 GC、堆增长、插件持续消耗、依赖和业务任务告警
+          value: true
+          help: 采样不足时不会判断恢复。业务任务包含最近一小时失败备份、运行超过 30 分钟的备份及就绪队列达到 100 的线程池。
+        - $formkit: number
+          name: gcWarningPercent
+          label: 最近 5 分钟 GC 时间占比阈值（%）
+          value: 10
+          min: 1
+          max: 100
+          validation: required|min:1|max:100
         - $formkit: switch
           name: enabled
           label: 启用告警

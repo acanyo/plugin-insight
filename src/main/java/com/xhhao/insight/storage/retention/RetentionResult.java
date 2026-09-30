@@ -8,12 +8,20 @@ public record RetentionResult(
     int resourceAttributionMetrics,
     int requestMetrics,
     int events,
-    int resolvedAlerts
+    int resolvedAlerts,
+    int diagnostics,
+    int deliveries
 ) {
+
+    public RetentionResult(int systemSamples, int systemMetrics, int pluginMetrics, int pluginResourceMetrics,
+        int resourceAttributionMetrics, int requestMetrics, int events, int resolvedAlerts) {
+        this(systemSamples, systemMetrics, pluginMetrics, pluginResourceMetrics, resourceAttributionMetrics,
+            requestMetrics, events, resolvedAlerts, 0, 0);
+    }
 
     public int totalDeleted() {
         return systemSamples + systemMetrics + pluginMetrics + pluginResourceMetrics
-            + resourceAttributionMetrics + requestMetrics + events + resolvedAlerts;
+            + resourceAttributionMetrics + requestMetrics + events + resolvedAlerts + diagnostics + deliveries;
     }
 
     public boolean mayHaveMore(int batchSize) {
@@ -24,7 +32,7 @@ public record RetentionResult(
             || resourceAttributionMetrics == batchSize
             || requestMetrics == batchSize
             || events == batchSize
-            || resolvedAlerts == batchSize;
+            || resolvedAlerts == batchSize || diagnostics == batchSize || deliveries == batchSize;
     }
 
     public RetentionResult(

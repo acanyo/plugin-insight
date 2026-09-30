@@ -2,6 +2,7 @@ package com.xhhao.insight.storage.repository;
 
 import com.xhhao.insight.storage.database.SqliteConnectionManager;
 import com.xhhao.insight.storage.model.PluginResourceMinute;
+import com.xhhao.insight.storage.model.PluginResourcePersistenceSummary;
 import com.xhhao.insight.storage.model.PluginResourceSort;
 import com.xhhao.insight.storage.model.PluginResourceSummary;
 import com.xhhao.insight.storage.model.ResourceAttributionMinute;
@@ -154,6 +155,73 @@ public class PluginResourceRepository {
                     return rows.next() ? mapCoverage(rows) : ResourceAttributionSummary.empty();
                 }
             }
+        });
+    }
+
+    /**
+     * Finds how consistently each plugin consumes resources and how often it is the top
+     * consumer in a minute. Ties are retained so the result never hides equal consumers.
+     */
+    public List<PluginResourcePersistenceSummary> findPersistence(
+        long fromInclusiveMs,
+        long toExclusiveMs,
+        int limit
+    ) {
+        QueryRangeValidator.validate(fromInclusiveMs, toExclusiveMs, limit);
+        return connectionManager.read(connection -> {
+            List<PluginResourcePersistenceSummary> summaries = new ArrayList<>();
+            try (PreparedStatement statement = connection.prepareStatement("""
+                WITH ranked AS (
+                    SELECT plugin_id, bucket_start_ms, cpu_time_ns, allocated_bytes,
+                           live_threads_max,
+                           DENSE_RANK() OVER (
+                               PARTITION BY bucket_start_ms ORDER BY cpu_time_ns DESC
+                           ) AS cpu_rank,
+                           DENSE_RANK() OVER (
+                               PARTITION BY bucket_start_ms ORDER BY allocated_bytes DESC
+                           ) AS allocation_rank
+                    FROM plugin_resource_minute
+                    WHERE bucket_start_ms >= ? AND bucket_start_ms < ?
+                )
+                SELECT plugin_id,
+                       COUNT(*) AS observed_minutes,
+                       SUM(CASE WHEN cpu_time_ns > 0 THEN 1 ELSE 0 END)
+                           AS cpu_active_minutes,
+                       SUM(CASE WHEN allocated_bytes > 0 THEN 1 ELSE 0 END)
+                           AS allocation_active_minutes,
+                       SUM(CASE WHEN live_threads_max > 0 THEN 1 ELSE 0 END)
+                           AS thread_present_minutes,
+                       SUM(CASE WHEN cpu_rank = 1 AND cpu_time_ns > 0 THEN 1 ELSE 0 END)
+                           AS top_cpu_minutes,
+                       SUM(CASE WHEN allocation_rank = 1 AND allocated_bytes > 0
+                           THEN 1 ELSE 0 END) AS top_allocation_minutes,
+                       SUM(cpu_time_ns) AS cpu_time_ns,
+                       SUM(allocated_bytes) AS allocated_bytes,
+                       MAX(live_threads_max) AS live_threads_max
+                FROM ranked
+                GROUP BY plugin_id
+                ORDER BY plugin_id ASC
+                LIMIT ?
+                """)) {
+                statement.setLong(1, fromInclusiveMs);
+                statement.setLong(2, toExclusiveMs);
+                statement.setInt(3, limit);
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        summaries.add(new PluginResourcePersistenceSummary(
+                            rows.getString("plugin_id"), rows.getInt("observed_minutes"),
+                            rows.getInt("cpu_active_minutes"),
+                            rows.getInt("allocation_active_minutes"),
+                            rows.getInt("thread_present_minutes"),
+                            rows.getInt("top_cpu_minutes"),
+                            rows.getInt("top_allocation_minutes"),
+                            rows.getLong("cpu_time_ns"), rows.getLong("allocated_bytes"),
+                            rows.getInt("live_threads_max")
+                        ));
+                    }
+                }
+            }
+            return summaries;
         });
     }
 

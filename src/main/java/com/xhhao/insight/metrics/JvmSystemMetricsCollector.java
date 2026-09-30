@@ -44,10 +44,7 @@ public class JvmSystemMetricsCollector {
         MemoryUsage nonHeap = memory.getNonHeapMemoryUsage();
         long[] deadlocked = threads.findDeadlockedThreads();
         DiskUsage disk = diskUsage();
-        long totalMemory = operatingSystem == null ? 0
-            : nonNegative(operatingSystem.getTotalMemorySize());
-        long freeMemory = operatingSystem == null ? 0
-            : nonNegative(operatingSystem.getFreeMemorySize());
+        SystemMemoryReader.MemorySnapshot systemMemory = SystemMemoryReader.read(operatingSystem);
         return new SystemSnapshot(
             clock.millis(),
             ManagementFactory.getRuntimeMXBean().getUptime(),
@@ -57,8 +54,8 @@ public class JvmSystemMetricsCollector {
             nonNegative(heap.getUsed()),
             positiveLimit(heap),
             nonNegative(nonHeap.getUsed()),
-            Math.max(0, totalMemory - freeMemory),
-            totalMemory,
+            systemMemory.usedBytes(),
+            systemMemory.totalBytes(),
             garbageCollectors.stream().mapToLong(JvmSystemMetricsCollector::collectionCount).sum(),
             garbageCollectors.stream().mapToLong(JvmSystemMetricsCollector::collectionTime).sum(),
             threads.getThreadCount(),

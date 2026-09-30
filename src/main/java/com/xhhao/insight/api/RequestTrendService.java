@@ -50,6 +50,7 @@ public class RequestTrendService {
         int toExclusive
     ) {
         long requestCount = 0;
+        long clientErrorCount = 0;
         long errorCount = 0;
         long durationSumUs = 0;
         long durationMaxUs = 0;
@@ -57,14 +58,20 @@ public class RequestTrendService {
         for (int index = fromInclusive; index < toExclusive; index++) {
             RequestTrendMinute metric = source.get(index);
             requestCount = saturatingAdd(requestCount, metric.requestCount());
+            clientErrorCount = saturatingAdd(clientErrorCount, metric.clientErrorCount());
             errorCount = saturatingAdd(errorCount, metric.errorCount());
             durationSumUs = saturatingAdd(durationSumUs, metric.durationSumUs());
             durationMaxUs = Math.max(durationMaxUs, metric.durationMaxUs());
             merge(histogram, metric.histogram());
         }
+        RequestTrendMinute first = source.get(fromInclusive);
+        RequestTrendMinute last = source.get(toExclusive - 1);
+        long intervalMs = intervalBetween(first, last);
         return new RequestTrendMinute(
-            source.get(toExclusive - 1).bucketStartMs(),
+            last.bucketStartMs(),
+            intervalMs,
             requestCount,
+            clientErrorCount,
             errorCount,
             durationSumUs,
             durationMaxUs,
@@ -94,15 +101,28 @@ public class RequestTrendService {
     }
 
     private static TrendResponse.RequestPoint toPoint(RequestTrendMinute metric) {
+        double requestsPerMinute = metric.requestCount() * 60_000d / metric.intervalMs();
+        double clientErrorRate = percent(metric.clientErrorCount(), metric.requestCount());
+        double serverErrorRate = percent(metric.errorCount(), metric.requestCount());
         return new TrendResponse.RequestPoint(
-            metric.bucketStartMs(), metric.requestCount(), metric.errorCount(),
-            metric.requestCount() == 0 ? 0
-                : metric.errorCount() * 100d / metric.requestCount(),
+            metric.bucketStartMs(), metric.requestCount(), requestsPerMinute,
+            metric.clientErrorCount(), clientErrorRate,
+            metric.errorCount(), serverErrorRate,
+            metric.errorCount(), serverErrorRate,
             metric.requestCount() == 0 ? 0
                 : metric.durationSumUs() / 1_000d / metric.requestCount(),
             metric.histogram().estimatePercentileUs(0.95, metric.durationMaxUs()) / 1_000d,
             metric.histogram().estimatePercentileUs(0.99, metric.durationMaxUs()) / 1_000d
         );
+    }
+
+    private static long intervalBetween(RequestTrendMinute first, RequestTrendMinute last) {
+        long endMs = saturatingAdd(last.bucketStartMs(), last.intervalMs());
+        return Math.max(1, endMs - first.bucketStartMs());
+    }
+
+    private static double percent(long count, long total) {
+        return total == 0 ? 0 : count * 100d / total;
     }
 
     private static long saturatingAdd(long left, long right) {

@@ -1,34 +1,44 @@
 <script setup lang="ts">
 import { VAlert } from '@halo-dev/components'
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import SectionHeading from '@/components/common/SectionHeading.vue'
 import SectionState from '@/components/common/SectionState.vue'
 import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import RouteSortControl from '@/components/performance/RouteSortControl.vue'
+import SustainedConsumersSection from '@/components/performance/SustainedConsumersSection.vue'
 import { REQUEST_HEALTH_THRESHOLDS } from '@/constants/monitoring'
+import { ROUTE_RANKING_PRESENTATION, type RouteSortColumn } from '@/constants/routeRanking'
 import type {
   HealthStatus,
+  PluginConsumerItem,
   PluginRankingItem,
   PluginSort,
   RequestRouteItem,
+  RequestRouteSort,
   SelectOption,
 } from '@/types/insight'
 import { formatBytes, formatCompactNumber, formatLatency, formatPercent } from '@/utils/format'
 
 const props = defineProps<{
   plugins?: PluginRankingItem[]
+  consumers?: PluginConsumerItem[]
   routes?: RequestRouteItem[]
   pluginSort: PluginSort
+  routeSort?: RequestRouteSort
   pluginsLoading: boolean
+  consumersLoading?: boolean
   routesLoading: boolean
   pluginsError?: string
+  consumersError?: string
   routesError?: string
 }>()
 
 const emit = defineEmits<{
   retry: []
   'update:pluginSort': [value: PluginSort]
+  'update:routeSort': [value: RequestRouteSort]
 }>()
 
 const sortOptions: SelectOption<string>[] = [
@@ -45,6 +55,28 @@ const sortModel = computed({
   get: () => props.pluginSort,
   set: (value: string) => emit('update:pluginSort', value as PluginSort),
 })
+
+const fallbackRouteSort = ref<RequestRouteSort>(props.routeSort ?? 'slow')
+const routeSortModel = computed<RequestRouteSort>({
+  get: () => props.routeSort ?? fallbackRouteSort.value,
+  set: (value) => {
+    fallbackRouteSort.value = value
+    emit('update:routeSort', value)
+  },
+})
+
+watch(
+  () => props.routeSort,
+  (value) => {
+    if (value) fallbackRouteSort.value = value
+  },
+)
+
+const routeRankingPresentation = computed(() => ROUTE_RANKING_PRESENTATION[routeSortModel.value])
+
+function routeColumnSort(column: RouteSortColumn): 'descending' | 'none' {
+  return routeRankingPresentation.value.sortColumn === column ? 'descending' : 'none'
+}
 
 function pluginTone(plugin: PluginRankingItem): HealthStatus {
   if (!plugin.enabled) return 'unknown'
@@ -112,6 +144,13 @@ function routeTone(route: RequestRouteItem): HealthStatus {
 
 <template>
   <div class="performance-panel">
+    <SustainedConsumersSection
+      :consumers="consumers"
+      :loading="consumersLoading ?? false"
+      :error="consumersError"
+      @retry="emit('retry')"
+    />
+
     <section class="insight-section">
       <SectionHeading
         title="插件资源与请求影响排行"
@@ -246,19 +285,27 @@ function routeTone(route: RequestRouteItem): HealthStatus {
     </section>
 
     <section class="insight-section">
-      <SectionHeading title="慢接口排行" description="按 P95 响应时间排序的归一化请求路径" />
+      <SectionHeading
+        :title="routeRankingPresentation.title"
+        :description="routeRankingPresentation.description"
+      >
+        <template #actions>
+          <RouteSortControl v-model="routeSortModel" />
+        </template>
+      </SectionHeading>
       <SectionState
         :loading="routesLoading && !routes"
         :error="!routes ? routesError : undefined"
         :empty="!routesLoading && !routesError && !routes?.length"
-        empty-title="没有检测到慢接口"
+        :empty-title="routeRankingPresentation.emptyTitle"
+        :empty-description="routeRankingPresentation.emptyDescription"
         @retry="emit('retry')"
       >
         <VAlert
           v-if="routesError && routes"
           class="insight-refresh-error"
           type="error"
-          :title="`慢接口排行刷新失败：${routesError}`"
+          :title="`${routeRankingPresentation.title}刷新失败：${routesError}`"
           :closable="false"
         />
         <div v-if="routes" class="insight-table-wrap">
@@ -268,12 +315,69 @@ function routeTone(route: RequestRouteItem): HealthStatus {
                 <th>接口</th>
                 <th>插件 / 作用域</th>
                 <th>状态</th>
-                <th class="insight-numeric">请求</th>
-                <th class="insight-numeric">平均</th>
-                <th class="insight-numeric">P95</th>
-                <th class="insight-numeric">P99</th>
-                <th class="insight-numeric">最大</th>
-                <th class="insight-numeric">错误率</th>
+                <th class="insight-numeric" :aria-sort="routeColumnSort('requests')">
+                  请求
+                  <span
+                    v-if="routeColumnSort('requests') === 'descending'"
+                    class="route-sort-marker"
+                    aria-hidden="true"
+                    >↓</span
+                  >
+                </th>
+                <th class="insight-numeric" :aria-sort="routeColumnSort('errors')">
+                  错误
+                  <span
+                    v-if="routeColumnSort('errors') === 'descending'"
+                    class="route-sort-marker"
+                    aria-hidden="true"
+                    >↓</span
+                  >
+                </th>
+                <th class="insight-numeric" :aria-sort="routeColumnSort('average')">
+                  平均
+                  <span
+                    v-if="routeColumnSort('average') === 'descending'"
+                    class="route-sort-marker"
+                    aria-hidden="true"
+                    >↓</span
+                  >
+                </th>
+                <th class="insight-numeric" :aria-sort="routeColumnSort('p95')">
+                  P95
+                  <span
+                    v-if="routeColumnSort('p95') === 'descending'"
+                    class="route-sort-marker"
+                    aria-hidden="true"
+                    >↓</span
+                  >
+                </th>
+                <th class="insight-numeric" :aria-sort="routeColumnSort('p99')">
+                  P99
+                  <span
+                    v-if="routeColumnSort('p99') === 'descending'"
+                    class="route-sort-marker"
+                    aria-hidden="true"
+                    >↓</span
+                  >
+                </th>
+                <th class="insight-numeric" :aria-sort="routeColumnSort('maximum')">
+                  最大
+                  <span
+                    v-if="routeColumnSort('maximum') === 'descending'"
+                    class="route-sort-marker"
+                    aria-hidden="true"
+                    >↓</span
+                  >
+                </th>
+                <th class="insight-numeric" :aria-sort="routeColumnSort('error-rate')">
+                  错误率
+                  <span
+                    v-if="routeColumnSort('error-rate') === 'descending'"
+                    class="route-sort-marker"
+                    aria-hidden="true"
+                    >↓</span
+                  >
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -288,6 +392,9 @@ function routeTone(route: RequestRouteItem): HealthStatus {
                 <td><StatusBadge :tone="routeTone(route)" /></td>
                 <td class="insight-numeric insight-mono">
                   {{ formatCompactNumber(route.requestCount) }}
+                </td>
+                <td class="insight-numeric insight-mono" :class="{ danger: route.errorCount > 0 }">
+                  {{ formatCompactNumber(route.errorCount) }}
                 </td>
                 <td class="insight-numeric insight-mono">
                   {{ formatLatency(route.averageLatencyMs) }}
@@ -371,14 +478,14 @@ function routeTone(route: RequestRouteItem): HealthStatus {
   height: 6px;
   overflow: hidden;
   border-radius: 3px;
-  background: #edf0f2;
+  background: #e5e7eb;
 }
 
 .impact-cell__bar i {
   display: block;
   max-width: 100%;
   height: 100%;
-  background: var(--insight-cyan);
+  background: var(--insight-primary);
 }
 
 .resource-quality {
@@ -425,7 +532,13 @@ function routeTone(route: RequestRouteItem): HealthStatus {
 }
 
 .route-table {
-  min-width: 1040px;
+  min-width: 1120px;
+}
+
+.route-sort-marker {
+  margin-left: 2px;
+  color: var(--insight-primary);
+  font-weight: 750;
 }
 
 .route-name {
@@ -450,10 +563,10 @@ function routeTone(route: RequestRouteItem): HealthStatus {
   align-items: center;
   justify-content: center;
   padding: 2px 5px;
-  border: 1px solid #b7dde3;
+  border: 1px solid #bfdbfe;
   border-radius: 4px;
-  color: var(--insight-cyan);
-  background: var(--insight-cyan-soft);
+  color: var(--insight-primary);
+  background: var(--insight-primary-soft);
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 10px;
   font-weight: 700;

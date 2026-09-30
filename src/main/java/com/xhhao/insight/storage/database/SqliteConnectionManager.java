@@ -11,21 +11,26 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import run.halo.app.plugin.PluginsRootGetter;
 
+@Slf4j
 @Component
 public class SqliteConnectionManager implements AutoCloseable {
 
     public static final int BUSY_TIMEOUT_MS = 5_000;
     private static final int MAX_BUSY_ATTEMPTS = 3;
+    private static final int MAX_READ_ATTEMPTS = 2;
 
     private final Path databasePath;
     private final String jdbcUrl;
     private final StorageHealth health;
     private final SqliteDriverLease driverLease = new SqliteDriverLease();
     private final ReentrantLock writeLock = new ReentrantLock();
+    private final ReentrantReadWriteLock lifecycleLock = new ReentrantReadWriteLock(true);
 
     private volatile Connection writeConnection;
     private volatile boolean closed;
@@ -53,25 +58,33 @@ public class SqliteConnectionManager implements AutoCloseable {
     }
 
     public synchronized void open() {
-        if (isWriteConnectionOpen()) {
-            return;
-        }
-        closed = false;
+        lifecycleLock.writeLock().lock();
+        Connection opening = null;
         try {
+            if (isWriteConnectionOpen()) {
+                return;
+            }
+            closed = false;
             Files.createDirectories(databasePath.getParent());
             driverLease.acquire();
-            Connection connection = DriverManager.getConnection(jdbcUrl);
-            configureWriteConnection(connection);
-            writeConnection = connection;
+            opening = DriverManager.getConnection(jdbcUrl);
+            configureWriteConnection(opening);
+            writeConnection = opening;
         } catch (IOException | SQLException | RuntimeException e) {
+            if (opening != null) {
+                try { opening.close(); } catch (SQLException closeError) { e.addSuppressed(closeError); }
+            }
             closeWriteConnectionQuietly();
             driverLease.release();
             throw new StorageException("Failed to open SQLite database at " + databasePath, e);
+        } finally {
+            lifecycleLock.writeLock().unlock();
         }
     }
 
     public <T> T write(SqlWork<T> work) {
         Objects.requireNonNull(work, "work must not be null");
+        lifecycleLock.readLock().lock();
         writeLock.lock();
         try {
             Connection connection = requireWriteConnection();
@@ -81,6 +94,7 @@ public class SqliteConnectionManager implements AutoCloseable {
                     return executeTransaction(connection, work);
                 } catch (SQLException e) {
                     if (!isBusy(e) || attempt == MAX_BUSY_ATTEMPTS) {
+                        reportFailure("write", e);
                         if (isCorruption(e)) {
                             health.markDegraded("SQLite reported database corruption");
                         } else {
@@ -95,53 +109,49 @@ public class SqliteConnectionManager implements AutoCloseable {
             throw new StorageException("SQLite remained busy after retries", lastBusyFailure);
         } finally {
             writeLock.unlock();
+            lifecycleLock.readLock().unlock();
         }
     }
 
+    /** Read callbacks must be replay-safe: a transient BUSY/LOCKED may retry once. */
     public <T> T read(SqlWork<T> work) {
-        Objects.requireNonNull(work, "work must not be null");
-        requireWriteConnection();
-        try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
-            configureReadConnection(connection);
-            return work.execute(connection);
-        } catch (SQLException e) {
-            if (isCorruption(e)) {
-                health.markDegraded("SQLite reported database corruption");
-            } else {
-                health.markDegraded("SQLite read failed");
-            }
-            throw new StorageException("SQLite read failed", e);
-        }
+        return executeRead(work, false);
     }
 
     /**
-     * Executes multiple read statements against one stable WAL snapshot.
+     * Executes against one stable WAL snapshot. Never replays a started callback,
+     * which may have already streamed data to an export file.
      */
     public <T> T readTransaction(SqlWork<T> work) {
+        return executeRead(work, true);
+    }
+
+    private <T> T executeRead(SqlWork<T> work, boolean transaction) {
         Objects.requireNonNull(work, "work must not be null");
-        requireWriteConnection();
-        try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
-            configureReadConnection(connection);
-            connection.setAutoCommit(false);
-            try {
-                T result = work.execute(connection);
-                connection.commit();
-                return result;
-            } catch (SQLException | RuntimeException error) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollbackFailure) {
-                    error.addSuppressed(rollbackFailure);
+        lifecycleLock.readLock().lock();
+        try {
+            requireWriteConnection();
+            for (int attempt = 1; attempt <= MAX_READ_ATTEMPTS; attempt++) {
+                boolean callbackStarted = false;
+                try (Connection connection = DriverManager.getConnection(jdbcUrl)) {
+                    configureReadConnection(connection);
+                    callbackStarted = true;
+                    return transaction ? executeTransaction(connection, work) : work.execute(connection);
+                } catch (SQLException error) {
+                    if (isBusy(error) && attempt < MAX_READ_ATTEMPTS && (!transaction || !callbackStarted)) {
+                        pauseBeforeRetry(attempt);
+                        continue;
+                    }
+                    String operation = transaction ? "snapshot read" : "read";
+                    reportFailure(operation, error);
+                    health.markDegraded(isCorruption(error) ? "SQLite reported database corruption"
+                        : "SQLite " + operation + " failed (code=" + error.getErrorCode() + ")");
+                    throw new StorageException("SQLite " + operation + " failed", error);
                 }
-                throw error;
             }
-        } catch (SQLException error) {
-            if (isCorruption(error)) {
-                health.markDegraded("SQLite reported database corruption");
-            } else {
-                health.markDegraded("SQLite snapshot read failed");
-            }
-            throw new StorageException("SQLite snapshot read failed", error);
+            throw new IllegalStateException("SQLite read attempts exhausted");
+        } finally {
+            lifecycleLock.readLock().unlock();
         }
     }
 
@@ -180,7 +190,6 @@ public class SqliteConnectionManager implements AutoCloseable {
         try (Statement statement = connection.createStatement()) {
             statement.execute("PRAGMA busy_timeout=" + BUSY_TIMEOUT_MS);
             statement.execute("PRAGMA foreign_keys=ON");
-            statement.execute("PRAGMA synchronous=NORMAL");
             statement.execute("PRAGMA query_only=ON");
         }
     }
@@ -198,11 +207,11 @@ public class SqliteConnectionManager implements AutoCloseable {
     }
 
     public void closeWriteConnection() {
-        writeLock.lock();
+        lifecycleLock.writeLock().lock();
         try {
             closeWriteConnectionQuietly();
         } finally {
-            writeLock.unlock();
+            lifecycleLock.writeLock().unlock();
         }
     }
 
@@ -262,7 +271,8 @@ public class SqliteConnectionManager implements AutoCloseable {
     private static boolean isBusy(SQLException exception) {
         SQLException current = exception;
         while (current != null) {
-            if (current.getErrorCode() == 5 || current.getErrorCode() == 6) {
+            int primaryCode = current.getErrorCode() & 0xff;
+            if (primaryCode == 5 || primaryCode == 6) {
                 return true;
             }
             String message = current.getMessage();
@@ -273,6 +283,15 @@ public class SqliteConnectionManager implements AutoCloseable {
             current = current.getNextException();
         }
         return false;
+    }
+
+    private static void reportFailure(String operation, SQLException error) {
+        // Error codes and the call site aid diagnosis without logging SQL or stored payloads.
+        var site = java.util.Arrays.stream(error.getStackTrace())
+            .filter(frame -> frame.getClassName().startsWith("com.xhhao.insight."))
+            .findFirst().map(Object::toString).orElse("unknown");
+        log.warn("Insight SQLite {} failed: code={}, state={}, site={}",
+            operation, error.getErrorCode(), error.getSQLState(), site);
     }
 
     public static boolean isCorruption(Throwable failure) {
@@ -299,7 +318,7 @@ public class SqliteConnectionManager implements AutoCloseable {
             Thread.sleep(25L * attempt);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new StorageException("Interrupted while waiting to retry SQLite write", e);
+            throw new StorageException("Interrupted while waiting to retry SQLite operation", e);
         }
     }
 }

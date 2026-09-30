@@ -1,0 +1,127 @@
+.diagnostics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.diagnostic-section {
+  padding: 18px;
+}
+.diagnostic-section header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.diagnostic-section h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.diagnostic-section h3 {
+  margin: 12px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.diagnostic-section p {
+  color: var(--insight-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 8px 0;
+}
+.diagnostic-section pre {
+  margin: 10px 0;
+  padding: 12px;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--insight-surface-muted);
+  border: 1px solid var(--insight-border);
+  border-radius: 4px;
+  font-size: 11px;
+}
+.diagnostic-section summary {
+  padding: 8px 0;
+  cursor: pointer;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.diagnostic-empty {
+  padding: 26px 0;
+  text-align: center;
+}
+.diagnostic-record {
+  padding: 14px 0;
+  border-top: 1px solid var(--insight-border);
+}
+.diagnostic-record > header {
+  margin-bottom: 4px;
+}
+.diagnostic-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--insight-border);
+  color: var(--insight-muted);
+  font-size: 12px;
+}
+.diagnostic-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.diagnostic-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--insight-muted);
+  font-size: 12px;
+}
+.diagnostic-controls input,
+.diagnostic-controls select {
+  min-height: 32px;
+  max-width: 260px;
+  padding: 5px 9px;
+  border: 1px solid var(--insight-border);
+  border-radius: 4px;
+  background: var(--insight-surface);
+  color: var(--insight-ink);
+}
+.diagnostic-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 16px 0;
+}
+.diagnostic-metrics article {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--insight-surface-muted);
+  border-radius: 4px;
+}
+.diagnostic-metrics span,
+.diagnostic-metrics small {
+  color: var(--insight-muted);
+  font-size: 12px;
+}
+.diagnostic-metrics strong {
+  color: var(--insight-ink);
+  font-size: 22px;
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .diagnostic-metrics {
+    grid-template-columns: 1fr;
+  }
+  .diagnostic-section {
+    padding: 12px;
+  }
+}

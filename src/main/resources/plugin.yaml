@@ -8,7 +8,7 @@ metadata:
 spec:
   enabled: true
   requires: ">=2.26.0"
-  version: "1.0.0"
+  version: "1.1.6"
   author:
     name: Handsome
     website: https://github.com/Handsome
@@ -16,8 +16,8 @@ spec:
   homepage: https://github.com/Handsome/insight#readme
   repo: https://github.com/Handsome/insight
   issues: https://github.com/Handsome/insight/issues
-  displayName: "Insight 运行监控"
-  description: "Halo 运行状态、JVM、请求性能、插件影响与告警监控"
+  displayName: "Halo Insight · 运行洞察"
+  description: "Halo 运行监控、JVM 性能诊断、请求与插件影响分析、依赖健康、告警通知和故障日志诊断"
   settingName: insight-settings
   configMapName: insight-configmap
   license:

@@ -6,7 +6,11 @@ import com.xhhao.insight.halo.AttachmentUrlAccessProbe.Outcome;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.Predicate;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -34,6 +38,7 @@ public final class AttachmentStorageProbe {
     static final Duration SHARED_URL_TTL = Duration.ofMinutes(1);
     static final Duration POLICY_TIMEOUT = Duration.ofSeconds(6);
     static final Duration TOTAL_TIMEOUT = Duration.ofSeconds(10);
+    private static final String PLUGIN_NAME_LABEL = "plugin.halo.run/plugin-name";
 
     private final ReactiveExtensionClient extensionClient;
     private final AttachmentService attachmentService;
@@ -97,29 +102,42 @@ public final class AttachmentStorageProbe {
             return Mono.just(PolicyCheck.unavailable(name, "策略未关联配置数据"));
         }
 
-        Mono<Boolean> templateExists = extensionClient
+        Mono<Optional<PolicyTemplate>> template = extensionClient
             .fetch(PolicyTemplate.class, spec.getTemplateName())
-            .hasElement();
+            .map(Optional::of)
+            .defaultIfEmpty(Optional.empty());
         Mono<Boolean> configExists = extensionClient
             .fetch(ConfigMap.class, spec.getConfigMapName())
             .hasElement();
 
-        return Mono.zip(templateExists, configExists)
-            .flatMap(exists -> {
-                if (!exists.getT1()) {
+        return Mono.zip(template, configExists)
+            .flatMap(resources -> {
+                Optional<PolicyTemplate> policyTemplate = resources.getT1();
+                String providerPluginId = policyTemplate
+                    .map(AttachmentStorageProbe::providerPluginId)
+                    .orElse(null);
+                if (policyTemplate.isEmpty()) {
                     return Mono.just(PolicyCheck.unavailable(name, "关联的存储模板不存在"));
                 }
-                if (!exists.getT2()) {
-                    return Mono.just(PolicyCheck.unavailable(name, "关联的存储配置不存在"));
+                if (!resources.getT2()) {
+                    return Mono.just(PolicyCheck.unavailable(
+                        name, "关联的存储配置不存在", providerPluginId));
                 }
-                return probeExistingAttachment(policy, name);
+                return probeExistingAttachment(policy, name, providerPluginId)
+                    .timeout(POLICY_TIMEOUT)
+                    .onErrorResume(error -> Mono.just(PolicyCheck.unavailable(
+                        name, "策略只读探测失败（" + simpleFailureName(error) + "）",
+                        providerPluginId)));
             })
-            .timeout(POLICY_TIMEOUT)
             .onErrorResume(error -> Mono.just(PolicyCheck.unavailable(
                 name, "策略只读探测失败（" + simpleFailureName(error) + "）")));
     }
 
-    private Mono<PolicyCheck> probeExistingAttachment(Policy policy, String name) {
+    private Mono<PolicyCheck> probeExistingAttachment(
+        Policy policy,
+        String name,
+        String providerPluginId
+    ) {
         ListOptions attachmentQuery = ListOptions.builder()
             .fieldQuery(equal("spec.policyName", metadataName(policy)))
             .build();
@@ -131,14 +149,17 @@ public final class AttachmentStorageProbe {
                 .flatMap(externalLinkProcessor::processLink)
                 .flatMap(urlAccessProbe::probe)
                 .map(result -> switch (result.outcome()) {
-                    case REACHABLE -> PolicyCheck.reachable(name, result.detail());
-                    case INCONCLUSIVE -> PolicyCheck.inconclusive(name, result.detail());
-                    case UNREACHABLE -> PolicyCheck.unavailable(name, result.detail());
+                    case REACHABLE -> PolicyCheck.reachable(
+                        name, result.detail(), providerPluginId);
+                    case INCONCLUSIVE -> PolicyCheck.inconclusive(
+                        name, result.detail(), providerPluginId);
+                    case UNREACHABLE -> PolicyCheck.unavailable(
+                        name, result.detail(), providerPluginId);
                 })
                 .switchIfEmpty(Mono.just(PolicyCheck.unavailable(
-                    name, "已存在附件，但对应处理器未返回访问地址"))))
+                    name, "已存在附件，但对应处理器未返回访问地址", providerPluginId))))
             .switchIfEmpty(Mono.just(PolicyCheck.inconclusive(
-                name, "没有现有附件可供只读探测（不会上传测试文件）")));
+                name, "没有现有附件可供只读探测（不会上传测试文件）", providerPluginId)));
     }
 
     private Mono<java.net.URI> resolveAccessUri(Attachment attachment) {
@@ -163,16 +184,40 @@ public final class AttachmentStorageProbe {
         }
 
         if (unavailable > 0) {
-            return DependencyStatus.warning("attachments", "附件存储",
-                counts + "；" + firstDetail(checks, Outcome.UNREACHABLE));
+            return withProviders(
+                DependencyStatus.warning("attachments", "附件存储",
+                    counts + "；" + firstDetail(checks, Outcome.UNREACHABLE)),
+                checks,
+                check -> check.outcome() == Outcome.UNREACHABLE);
         }
         if (inconclusive > 0 || truncated) {
-            return DependencyStatus.unknown("attachments", "附件存储",
-                counts + (inconclusive > 0
-                    ? "；" + firstDetail(checks, Outcome.INCONCLUSIVE)
-                    : ""));
+            return withProviders(
+                DependencyStatus.unknown("attachments", "附件存储",
+                    counts + (inconclusive > 0
+                        ? "；" + firstDetail(checks, Outcome.INCONCLUSIVE)
+                        : "")),
+                checks,
+                check -> check.outcome() == Outcome.INCONCLUSIVE);
         }
-        return DependencyStatus.healthy("attachments", "附件存储", counts);
+        return withProviders(
+            DependencyStatus.healthy("attachments", "附件存储", counts),
+            checks,
+            ignored -> true);
+    }
+
+    private static DependencyStatus withProviders(
+        DependencyStatus status,
+        List<PolicyCheck> checks,
+        Predicate<PolicyCheck> included
+    ) {
+        Map<String, DependencyProvider> providers = new LinkedHashMap<>();
+        checks.stream()
+            .filter(included)
+            .map(PolicyCheck::providerPluginId)
+            .filter(StringUtils::hasText)
+            .forEach(pluginId -> providers.putIfAbsent(
+                pluginId, new DependencyProvider(pluginId)));
+        return status.withProviders(List.copyOf(providers.values()));
     }
 
     private static String firstDetail(List<PolicyCheck> checks, Outcome outcome) {
@@ -195,6 +240,13 @@ public final class AttachmentStorageProbe {
         return policy.getMetadata() == null ? null : policy.getMetadata().getName();
     }
 
+    private static String providerPluginId(PolicyTemplate template) {
+        if (template.getMetadata() == null || template.getMetadata().getLabels() == null) {
+            return null;
+        }
+        return template.getMetadata().getLabels().get(PLUGIN_NAME_LABEL);
+    }
+
     private static String simpleFailureName(Throwable error) {
         Throwable current = error;
         while (current.getCause() != null && current.getCause() != current) {
@@ -203,18 +255,35 @@ public final class AttachmentStorageProbe {
         return current.getClass().getSimpleName();
     }
 
-    private record PolicyCheck(String name, Outcome outcome, String detail) {
+    private record PolicyCheck(
+        String name,
+        Outcome outcome,
+        String detail,
+        String providerPluginId
+    ) {
 
         static PolicyCheck reachable(String name, String detail) {
-            return new PolicyCheck(name, Outcome.REACHABLE, detail);
+            return reachable(name, detail, null);
+        }
+
+        static PolicyCheck reachable(String name, String detail, String providerPluginId) {
+            return new PolicyCheck(name, Outcome.REACHABLE, detail, providerPluginId);
         }
 
         static PolicyCheck inconclusive(String name, String detail) {
-            return new PolicyCheck(name, Outcome.INCONCLUSIVE, detail);
+            return inconclusive(name, detail, null);
+        }
+
+        static PolicyCheck inconclusive(String name, String detail, String providerPluginId) {
+            return new PolicyCheck(name, Outcome.INCONCLUSIVE, detail, providerPluginId);
         }
 
         static PolicyCheck unavailable(String name, String detail) {
-            return new PolicyCheck(name, Outcome.UNREACHABLE, detail);
+            return unavailable(name, detail, null);
+        }
+
+        static PolicyCheck unavailable(String name, String detail, String providerPluginId) {
+            return new PolicyCheck(name, Outcome.UNREACHABLE, detail, providerPluginId);
         }
     }
 }

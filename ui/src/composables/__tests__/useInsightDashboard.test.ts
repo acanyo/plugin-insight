@@ -1,5 +1,5 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { defineComponent, h, nextTick, ref } from 'vue'
+import { defineComponent, h, nextTick, ref, type Ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import * as insightApi from '@/api/insight'
@@ -10,6 +10,7 @@ import type {
   CursorPage,
   DashboardTab,
   MonitorEvent,
+  OptimizationStatus,
   OverviewResponse,
   PluginRankingItem,
   TimeRange,
@@ -25,15 +26,19 @@ vi.mock('@halo-dev/components', () => ({
 
 vi.mock('@/api/insight', () => ({
   acknowledgeAlert: vi.fn<typeof insightApi.acknowledgeAlert>(),
+  applyOptimization: vi.fn<typeof insightApi.applyOptimization>(),
   deleteData: vi.fn<typeof insightApi.deleteData>(),
   downloadExport: vi.fn<typeof insightApi.downloadExport>(),
   fetchAlerts: vi.fn<typeof insightApi.fetchAlerts>(),
   fetchAlertHistory: vi.fn<typeof insightApi.fetchAlertHistory>(),
   fetchEvents: vi.fn<typeof insightApi.fetchEvents>(),
+  fetchConsumers: vi.fn<typeof insightApi.fetchConsumers>(),
+  fetchOptimization: vi.fn<typeof insightApi.fetchOptimization>(),
   fetchOverview: vi.fn<typeof insightApi.fetchOverview>(),
   fetchPlugins: vi.fn<typeof insightApi.fetchPlugins>(),
   fetchRoutes: vi.fn<typeof insightApi.fetchRoutes>(),
   fetchTrends: vi.fn<typeof insightApi.fetchTrends>(),
+  rollbackOptimization: vi.fn<typeof insightApi.rollbackOptimization>(),
   testNotifications: vi.fn<typeof insightApi.testNotifications>(),
 }))
 
@@ -86,6 +91,7 @@ function event(id: string, type = 'lifecycle'): MonitorEvent {
 
 function mountDashboard(tab: DashboardTab): {
   dashboard: ReturnType<typeof useInsightDashboard>
+  range: Ref<TimeRange>
   wrapper: VueWrapper
 } {
   const activeTab = ref<DashboardTab>(tab)
@@ -101,14 +107,16 @@ function mountDashboard(tab: DashboardTab): {
     }),
   )
 
-  return { dashboard, wrapper }
+  return { dashboard, range, wrapper }
 }
 
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(insightApi.fetchOverview).mockResolvedValue({} as OverviewResponse)
+  vi.mocked(insightApi.fetchOptimization).mockResolvedValue({} as OptimizationStatus)
   vi.mocked(insightApi.fetchTrends).mockResolvedValue({} as TrendsResponse)
   vi.mocked(insightApi.fetchPlugins).mockResolvedValue([])
+  vi.mocked(insightApi.fetchConsumers).mockResolvedValue([])
   vi.mocked(insightApi.fetchRoutes).mockResolvedValue([])
   vi.mocked(insightApi.fetchAlerts).mockResolvedValue([])
   vi.mocked(insightApi.fetchAlertHistory).mockResolvedValue({ items: [], nextCursor: null })
@@ -116,6 +124,19 @@ beforeEach(() => {
 })
 
 describe('useInsightDashboard request ordering', () => {
+  it('refreshes historical resources with the newly selected time range', async () => {
+    const { range, wrapper } = mountDashboard('overview')
+    await flushPromises()
+
+    range.value = '30m'
+    await nextTick()
+    await flushPromises()
+
+    expect(insightApi.fetchTrends).toHaveBeenLastCalledWith('30m', expect.any(AbortSignal))
+
+    wrapper.unmount()
+  })
+
   it('keeps the newest plugin sort response when requests resolve out of order', async () => {
     const first = deferred<PluginRankingItem[]>()
     const second = deferred<PluginRankingItem[]>()

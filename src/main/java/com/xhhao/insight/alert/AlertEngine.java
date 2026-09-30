@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -45,6 +46,7 @@ public class AlertEngine {
     private final Map<AlertRule, AlertIncident> deferredIncidentWrites =
         new EnumMap<>(AlertRule.class);
     private final Map<AlertRule, Long> lastNotificationMs = new EnumMap<>(AlertRule.class);
+    private final EnumSet<AlertRule> suspendedRules = EnumSet.noneOf(AlertRule.class);
 
     private boolean activeIncidentsLoaded;
 
@@ -81,16 +83,22 @@ public class AlertEngine {
         Objects.requireNonNull(settings, "settings must not be null");
         loadActiveIncidents();
         flushDeferredIncidentWrites();
-        if (!settings.isEnabled()) {
-            pendingSinceMs.clear();
-            resolveDisabledRules(input, settings, Math.max(0, clock.millis()));
-            return;
-        }
-
         long nowMs = Math.max(0, clock.millis());
         long requiredDurationMs = Math.max(0, settings.getDurationSeconds()) * 1_000L;
         long cooldownMs = Math.max(0, settings.getCooldownMinutes()) * 60_000L;
         for (AlertRule rule : AlertRule.values()) {
+            if (!rule.enabled(settings)) {
+                pendingSinceMs.remove(rule);
+                if (suspendedRules.add(rule) && activeByRule.containsKey(rule)) {
+                    notifications.acknowledge(activeByRule.get(rule).id());
+                }
+                continue;
+            }
+            suspendedRules.remove(rule);
+            if (!rule.available(input, settings)) {
+                pendingSinceMs.remove(rule);
+                continue;
+            }
             evaluateRule(rule, input, settings, nowMs, requiredDurationMs, cooldownMs);
         }
     }
@@ -132,6 +140,7 @@ public class AlertEngine {
             activeByRule.put(rule, acknowledged);
             deferredIncidentWrites.remove(rule);
         });
+        notifications.acknowledge(current.id());
         saveTimelineEvent(
             acknowledged,
             "告警已确认：" + acknowledged.title(),
@@ -176,19 +185,18 @@ public class AlertEngine {
         long requiredDurationMs,
         long cooldownMs
     ) {
-        double value = rule.currentValue(input);
         double threshold = rule.threshold(settings);
         AlertIncident active = activeByRule.get(rule);
         if (!rule.breached(input, settings)) {
             pendingSinceMs.remove(rule);
             if (active != null) {
-                resolve(rule, active, value, threshold, nowMs);
+                resolve(rule, active, input, threshold, nowMs);
             }
             return;
         }
 
         if (active != null) {
-            update(rule, active, value, threshold, nowMs, cooldownMs);
+            update(rule, active, input, threshold, nowMs, cooldownMs);
             return;
         }
 
@@ -197,18 +205,18 @@ public class AlertEngine {
         if (nowMs - breachedAtMs < requiredDurationMs) {
             return;
         }
-        open(rule, value, threshold, breachedAtMs, nowMs);
+        open(rule, input, threshold, breachedAtMs, nowMs);
     }
 
     private void open(
         AlertRule rule,
-        double value,
+        AlertEvaluationInput input,
         double threshold,
         long breachedAtMs,
         long nowMs
     ) {
         AlertIncident opened = AlertIncidentTransitions.open(
-            rule, value, threshold, breachedAtMs, nowMs);
+            rule, input, threshold, breachedAtMs, nowMs);
         activeByRule.put(rule, opened);
         pendingSinceMs.remove(rule);
         saveRealtimeIncident(rule, opened);
@@ -225,13 +233,13 @@ public class AlertEngine {
     private void update(
         AlertRule rule,
         AlertIncident active,
-        double value,
+        AlertEvaluationInput input,
         double threshold,
         long nowMs,
         long cooldownMs
     ) {
         AlertIncident updated = AlertIncidentTransitions.update(
-            active, rule, value, threshold, nowMs);
+            active, rule, input, threshold, nowMs);
         activeByRule.put(rule, updated);
         saveRealtimeIncident(rule, updated);
 
@@ -256,12 +264,12 @@ public class AlertEngine {
     private void resolve(
         AlertRule rule,
         AlertIncident active,
-        double value,
+        AlertEvaluationInput input,
         double threshold,
         long nowMs
     ) {
         AlertIncident resolved = AlertIncidentTransitions.resolve(
-            active, rule, value, threshold, nowMs);
+            active, rule, input, threshold, nowMs);
         if (saveRealtimeIncident(rule, resolved) == IncidentWriteOutcome.FAILED) {
             return;
         }
@@ -296,6 +304,7 @@ public class AlertEngine {
         long nowMs
     ) {
         AlertNotification notification = new AlertNotification(
+            incident.id(),
             recovered ? "告警恢复：" + rule.title() : rule.title(),
             recovered ? "info" : rule.severity(),
             incident.summary(),
@@ -394,24 +403,6 @@ public class AlertEngine {
             // One shared gate and one SQLite connection mean later entries cannot make useful
             // progress after this rejection or failure during the same evaluation.
             return;
-        }
-    }
-
-    private void resolveDisabledRules(
-        AlertEvaluationInput input,
-        AlertSettings settings,
-        long nowMs
-    ) {
-        for (Map.Entry<AlertRule, AlertIncident> entry :
-            List.copyOf(activeByRule.entrySet())) {
-            AlertRule rule = entry.getKey();
-            resolve(
-                rule,
-                entry.getValue(),
-                rule.currentValue(input),
-                rule.threshold(settings),
-                nowMs
-            );
         }
     }
 

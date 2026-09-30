@@ -1,6 +1,11 @@
 package com.xhhao.insight.config;
 
+@lombok.Getter
+@lombok.Setter
 public class AlertSettings {
+
+    private double gcWarningPercent = 10;
+    private boolean advancedEnabled = true;
 
     private boolean enabled = true;
     private int durationSeconds = 60;

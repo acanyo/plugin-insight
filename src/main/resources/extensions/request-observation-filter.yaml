@@ -5,4 +5,4 @@ metadata:
 spec:
   className: com.xhhao.insight.metrics.RequestObservationFilter
   extensionPointName: additional-webfilter
-  displayName: Insight 请求监控
+  displayName: Halo Insight 请求监控

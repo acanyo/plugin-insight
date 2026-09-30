@@ -62,6 +62,7 @@ public class WebhookNotificationChannel implements NotificationChannel {
 
     private static String toJson(AlertNotification value) {
         return "{" +
+            "\"incidentId\":\"" + escape(value.incidentId()) + "\"," +
             "\"title\":\"" + escape(value.title()) + "\"," +
             "\"severity\":\"" + escape(value.severity()) + "\"," +
             "\"message\":\"" + escape(value.message()) + "\"," +

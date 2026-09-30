@@ -1,10 +1,14 @@
 package com.xhhao.insight;
 
 import com.xhhao.insight.collection.MonitoringCoordinator;
+import com.xhhao.insight.diagnostics.DiagnosticsLifecycle;
+import com.xhhao.insight.notification.NotificationDispatcher;
 import com.xhhao.insight.event.EventRecorder;
 import com.xhhao.insight.event.HaloApplicationLifecycleObserver;
 import com.xhhao.insight.event.HaloConfigMapEventWatcher;
 import com.xhhao.insight.event.HaloPluginEventWatcher;
+import com.xhhao.insight.notification.AcknowledgedNotificationReconciler;
+import com.xhhao.insight.optimization.OptimizationRuntimePolicy;
 import com.xhhao.insight.storage.database.SqliteStorageLifecycle;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,12 +33,19 @@ public class InsightPlugin extends BasePlugin {
     private final HaloPluginEventWatcher pluginEventWatcher;
     private final HaloConfigMapEventWatcher configMapEventWatcher;
     private final HaloApplicationLifecycleObserver haloLifecycleObserver;
+    private final AcknowledgedNotificationReconciler notificationReconciler;
+    private final OptimizationRuntimePolicy optimizationPolicy;
+    private final DiagnosticsLifecycle diagnostics;
+    private final NotificationDispatcher notificationDispatcher;
 
     public InsightPlugin(PluginContext pluginContext, SqliteStorageLifecycle storage,
         MonitoringCoordinator coordinator, EventRecorder events,
         HaloPluginEventWatcher pluginEventWatcher,
         HaloConfigMapEventWatcher configMapEventWatcher,
-        HaloApplicationLifecycleObserver haloLifecycleObserver) {
+        HaloApplicationLifecycleObserver haloLifecycleObserver,
+        AcknowledgedNotificationReconciler notificationReconciler,
+        OptimizationRuntimePolicy optimizationPolicy, DiagnosticsLifecycle diagnostics,
+        NotificationDispatcher notificationDispatcher) {
         super(pluginContext);
         this.storage = storage;
         this.coordinator = coordinator;
@@ -42,11 +53,19 @@ public class InsightPlugin extends BasePlugin {
         this.pluginEventWatcher = pluginEventWatcher;
         this.configMapEventWatcher = configMapEventWatcher;
         this.haloLifecycleObserver = haloLifecycleObserver;
+        this.notificationReconciler = notificationReconciler;
+        this.optimizationPolicy = optimizationPolicy;
+        this.diagnostics = diagnostics;
+        this.notificationDispatcher = notificationDispatcher;
     }
 
     @Override
     public void start() {
         boolean storageAvailable = storage.initialize();
+        optimizationPolicy.initialize(storageAvailable);
+        notificationDispatcher.start();
+        diagnostics.start();
+        notificationReconciler.reconcile();
         haloLifecycleObserver.start();
         pluginEventWatcher.start();
         configMapEventWatcher.start();
@@ -60,6 +79,8 @@ public class InsightPlugin extends BasePlugin {
     @Override
     public void stop() {
         coordinator.stop();
+        diagnostics.stop();
+        notificationDispatcher.destroy();
         configMapEventWatcher.dispose();
         pluginEventWatcher.dispose();
         haloLifecycleObserver.stop();
