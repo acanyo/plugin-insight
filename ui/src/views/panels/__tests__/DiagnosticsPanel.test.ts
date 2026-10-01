@@ -27,7 +27,6 @@ describe('DiagnosticsPanel permissions', () => {
       'memory',
       'observations',
       'tasks',
-      'external',
     ])
     for (const selection of ['threads', 'logs', 'jfr', 'deliveries']) {
       control.vm.$emit('update:modelValue', selection)

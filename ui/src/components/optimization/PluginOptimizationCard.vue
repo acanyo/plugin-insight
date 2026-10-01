@@ -4,14 +4,17 @@ import { utils } from '@halo-dev/ui-shared'
 import RiPauseCircleLine from '~icons/ri/pause-circle-line'
 
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import PluginIssueButton from '@/components/common/PluginIssueButton.vue'
 import { HALO_PLUGIN_MANAGE_PERMISSION, INSIGHT_MANAGE_PERMISSION } from '@/constants/permissions'
 import type { HealthStatus, PluginConsumerItem } from '@/types/insight'
+import type { IssueEnvironment } from '@/utils/pluginIssue'
 import { formatBytes, formatPercent } from '@/utils/format'
 
 defineProps<{
   consumer?: PluginConsumerItem | null
   resourceSamplingEnabled: boolean
   disabling: boolean
+  environment?: IssueEnvironment
 }>()
 
 const emit = defineEmits<{
@@ -102,6 +105,11 @@ function canDisable(consumer: PluginConsumerItem): boolean {
         <span v-else-if="consumer.pluginId === 'insight'">Insight 不会停用自身。</span>
         <span v-else-if="!consumer.sustained">当前证据不足，不建议停用插件。</span>
         <span v-else>插件当前未启用。</span>
+        <PluginIssueButton
+          v-if="consumer.sustained"
+          :consumer="consumer"
+          :environment="environment"
+        />
       </div>
     </div>
 

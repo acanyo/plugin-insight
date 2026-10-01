@@ -28,8 +28,7 @@ describe('PerformancePanel route ranking', () => {
     expect(wrapper.text()).toContain('持续高消耗插件')
     expect(wrapper.text()).toContain('慢请求阈值')
 
-    const p99Button = wrapper.findAll('button').find((button) => button.text() === 'P99')
-    await p99Button?.trigger('click')
+    await wrapper.find('select[aria-label="接口排行排序"]').setValue('p99')
 
     expect(wrapper.emitted('update:routeSort')).toEqual([['p99']])
     expect(wrapper.text()).toContain('接口 P99 排行')

@@ -8,18 +8,18 @@ metadata:
 spec:
   enabled: true
   requires: ">=2.26.0"
-  version: "1.1.6"
+  version: "1.0.0"
   author:
     name: Handsome
-    website: https://github.com/Handsome
-  logo: logo.png
-  homepage: https://github.com/Handsome/insight#readme
-  repo: https://github.com/Handsome/insight
-  issues: https://github.com/Handsome/insight/issues
-  displayName: "Halo Insight · 运行洞察"
-  description: "Halo 运行监控、JVM 性能诊断、请求与插件影响分析、依赖健康、告警通知和故障日志诊断"
+    website: https://github.com/acanyo
+  logo: logo.svg
+  homepage: https://github.com/acanyo/plugin-insight#readme
+  repo: https://github.com/acanyo/plugin-insight
+  issues: https://github.com/acanyo/plugin-insight/issues
+  displayName: "运行洞察"
+  description: "Halo 运行洞察：提供总览、CPU/内存/JVM/请求监控、全部插件资源排行、性能诊断、告警与事件时间线、Halo/Webhook 通知，以及一键生成 Issue 反馈。"
   settingName: insight-settings
   configMapName: insight-configmap
   license:
     - name: "GPL-3.0"
-      url: "https://github.com/Handsome/insight/blob/main/LICENSE"
+      url: "https://github.com/acanyo/plugin-insight/blob/main/LICENSE"

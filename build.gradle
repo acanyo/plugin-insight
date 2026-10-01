@@ -16,8 +16,6 @@ dependencies {
     implementation('org.xerial:sqlite-jdbc:3.53.4.0') {
         exclude group: 'org.slf4j', module: 'slf4j-api'
     }
-    implementation 'org.eclipse.angus:angus-mail:2.0.5'
-
     testImplementation 'run.halo.app:api'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
@@ -55,5 +53,5 @@ tasks.named('generatePluginComponentsIdx') {
 }
 
 halo {
-    version = '2.26'
+    version = '2.26.1'
 }

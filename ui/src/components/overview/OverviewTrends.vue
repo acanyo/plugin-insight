@@ -22,7 +22,7 @@ const cpuSeries: ChartSeries[] = [
 
 const capacitySeries: ChartSeries[] = [
   { key: 'heapUsedPercent', label: 'JVM 堆', color: '#2563eb' },
-  { key: 'memoryUsedPercent', label: '系统内存', color: '#0891b2' },
+  { key: 'memoryUsedPercent', label: '运行环境内存', color: '#0891b2' },
   { key: 'diskUsedPercent', label: '磁盘', color: '#64748b' },
 ]
 
@@ -143,13 +143,13 @@ const throughputPoints = computed<ChartPoint[]>(() =>
 
     <OverviewTrendCard
       title="容量水位"
-      description="JVM 堆、系统内存与磁盘占用"
+      description="JVM 堆、运行环境内存与磁盘占用"
       :points="capacityPoints"
       :series="capacitySeries"
       mode="percent"
       :threshold="85"
       threshold-label="高水位参考"
-      chart-label="JVM 堆、系统内存和磁盘使用率趋势"
+      chart-label="JVM 堆、运行环境内存和磁盘使用率趋势"
       empty-title="所选时间范围内没有容量样本"
       :loading="!trends && loading"
       :error="!trends ? error : undefined"

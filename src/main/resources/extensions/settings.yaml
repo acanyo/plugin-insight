@@ -51,17 +51,21 @@ spec:
           validation: required|min:64|max:4096
         - $formkit: switch
           name: pluginResourceSamplingEnabled
+          id: pluginResourceSamplingEnabled
+          key: pluginResourceSamplingEnabled
           label: 启用插件资源归因采样
           help: 使用有界线程采样估算插件 CPU 与分配内存；共享线程池不会强行归属
           value: true
         - $formkit: number
           name: pluginResourceMaxThreads
+          id: pluginResourceMaxThreads
+          key: pluginResourceMaxThreads
           label: 插件资源采样线程上限
           help: 每轮最多读取的线程计数器数量，超过上限会降低置信度
           value: 512
           min: 32
           max: 2048
-          if: "$value.pluginResourceSamplingEnabled"
+          if: "$get(pluginResourceSamplingEnabled).value === true"
           validation: required|min:32|max:2048
     - group: alerts
       label: 告警规则
@@ -135,89 +139,43 @@ spec:
     - group: notifications
       label: 通知渠道
       formSchema:
-        - $formkit: switch
-          name: haloNotificationEnabled
-          label: 启用 Halo 站内通知
-          help: 告警、恢复和测试通知将发送到指定用户的 Halo 通知中心
-          value: false
-        - $formkit: list
+        - $formkit: userSelect
           name: haloNotificationRecipients
-          label: Halo 通知接收用户名
-          help: 填写 Halo 用户名，例如 admin
+          id: haloNotificationRecipients
+          key: haloNotificationRecipients
+          label: Halo 通知接收用户
+          help: Halo 会按用户通知偏好发送站内通知和邮件；邮件服务器请在 Halo 系统设置中配置；可多选，清空后不发送通知
+          multiple: true
+          clearable: true
           value: []
-          max: 20
-          if: "$value.haloNotificationEnabled"
-          children:
-            - $formkit: text
-              index: "$index"
-              validation: required
         - $formkit: switch
           name: webhookEnabled
-          label: 启用 Webhook
+          id: webhookEnabled
+          key: webhookEnabled
+          label: 启用出站 Webhook
+          help: 将运行洞察告警发送到飞书、钉钉或自建接口
           value: false
         - $formkit: text
           name: webhookUrl
-          label: Webhook 地址
+          id: webhookUrl
+          key: webhookUrl
+          label: 出站 Webhook 地址
+          placeholder: https://example.com/insight/webhook
           value: ""
-          if: "$value.webhookEnabled"
+          if: "$get(webhookEnabled).value === true"
           validation: url
         - $formkit: password
           name: webhookSecret
-          label: Webhook 签名密钥
+          id: webhookSecret
+          key: webhookSecret
+          label: 出站 Webhook 签名密钥
           value: ""
-          if: "$value.webhookEnabled"
+          if: "$get(webhookEnabled).value === true"
         - $formkit: switch
           name: webhookAllowPrivateNetwork
+          id: webhookAllowPrivateNetwork
+          key: webhookAllowPrivateNetwork
           label: 允许 Webhook 访问私有网络
           help: 默认仅允许 HTTPS 公网地址；仅在信任目标且确实需要访问内网时开启
           value: false
-          if: "$value.webhookEnabled"
-        - $formkit: switch
-          name: emailEnabled
-          label: 启用邮件通知
-          value: false
-        - $formkit: text
-          name: smtpHost
-          label: SMTP 主机
-          value: ""
-          if: "$value.emailEnabled"
-        - $formkit: number
-          name: smtpPort
-          label: SMTP 端口
-          help: 端口 465 自动使用 SMTPS，其他端口按下方设置使用 STARTTLS
-          value: 587
-          min: 1
-          max: 65535
-          if: "$value.emailEnabled"
-        - $formkit: switch
-          name: smtpStartTls
-          label: 使用 STARTTLS
-          help: 开启后必须成功升级 TLS，不允许回退到明文连接
-          value: true
-          if: "$value.emailEnabled"
-        - $formkit: text
-          name: smtpUsername
-          label: SMTP 用户名
-          value: ""
-          if: "$value.emailEnabled"
-        - $formkit: password
-          name: smtpPassword
-          label: SMTP 密码
-          value: ""
-          if: "$value.emailEnabled"
-        - $formkit: email
-          name: smtpFrom
-          label: 发件地址
-          value: ""
-          if: "$value.emailEnabled"
-          validation: email
-        - $formkit: list
-          name: recipients
-          label: 收件地址
-          value: []
-          max: 10
-          if: "$value.emailEnabled"
-          children:
-            - $formkit: email
-              index: "$index"
-              validation: required|email
+          if: "$get(webhookEnabled).value === true"

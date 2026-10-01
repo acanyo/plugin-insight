@@ -75,7 +75,8 @@ public class PluginConsumerService {
 
         List<PluginConsumerItem> ranking = new ArrayList<>(evidence.size());
         for (Evidence item : evidence.values()) {
-            ranking.add(item.toItem(totalCpuNs, totalAllocatedBytes, totalRequestDurationUs));
+            ranking.add(item.toItem(totalCpuNs, totalAllocatedBytes, totalRequestDurationUs,
+                fromInclusiveMs, toExclusiveMs));
         }
         ranking.sort(Comparator.comparingDouble(PluginConsumerItem::pressureScore).reversed()
             .thenComparing(Comparator.comparingInt(PluginConsumerItem::topConsumerMinutes)
@@ -129,7 +130,9 @@ public class PluginConsumerService {
         private PluginConsumerItem toItem(
             long totalCpuNs,
             long totalAllocatedBytes,
-            long totalRequestDurationUs
+            long totalRequestDurationUs,
+            long fromMs,
+            long toMs
         ) {
             int resourceMinutes = resources == null ? 0 : resources.observedMinutes();
             int requestMinutes = requests == null ? 0 : requests.observedMinutes();
@@ -185,7 +188,8 @@ public class PluginConsumerService {
                 plugin.name(), displayName, plugin.enabled(), plugin.phase(), score,
                 level(score), dominant, sustained, confidence, observedMinutes, activeMinutes,
                 topMinutes, persistencePercent, cpuShare, allocationShare, requestShare,
-                bytesPerMinute, resources == null ? 0 : resources.liveThreadsMax());
+                bytesPerMinute, resources == null ? 0 : resources.liveThreadsMax(),
+                plugin.version(), plugin.issuesUrl(), fromMs, toMs);
         }
 
         private static String dominantResource(double[] components) {

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { VAlert } from '@halo-dev/components'
+import { useAutoAnimate } from '@formkit/auto-animate/vue'
 import { computed, ref, watch } from 'vue'
+import RiArrowDownSLine from '~icons/ri/arrow-down-s-line'
 
 import SectionHeading from '@/components/common/SectionHeading.vue'
 import SectionState from '@/components/common/SectionState.vue'
-import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import PluginIssueButton from '@/components/common/PluginIssueButton.vue'
 import RouteSortControl from '@/components/performance/RouteSortControl.vue'
 import SustainedConsumersSection from '@/components/performance/SustainedConsumersSection.vue'
 import { REQUEST_HEALTH_THRESHOLDS } from '@/constants/monitoring'
@@ -14,12 +16,20 @@ import type {
   HealthStatus,
   PluginConsumerItem,
   PluginRankingItem,
+  PluginRuntimeInfo,
   PluginSort,
   RequestRouteItem,
   RequestRouteSort,
   SelectOption,
 } from '@/types/insight'
-import { formatBytes, formatCompactNumber, formatLatency, formatPercent } from '@/utils/format'
+import type { IssueEnvironment } from '@/utils/pluginIssue'
+import {
+  formatBytes,
+  formatCompactNumber,
+  formatDateTime,
+  formatLatency,
+  formatPercent,
+} from '@/utils/format'
 
 const props = defineProps<{
   plugins?: PluginRankingItem[]
@@ -33,6 +43,8 @@ const props = defineProps<{
   pluginsError?: string
   consumersError?: string
   routesError?: string
+  environment?: IssueEnvironment
+  runtimePlugins?: PluginRuntimeInfo[]
 }>()
 
 const emit = defineEmits<{
@@ -57,6 +69,16 @@ const sortModel = computed({
 })
 
 const fallbackRouteSort = ref<RequestRouteSort>(props.routeSort ?? 'slow')
+const expandedPluginIds = ref(new Set<string>())
+const expandedRouteKeys = ref(new Set<string>())
+const [pluginRows] = useAutoAnimate<HTMLTableSectionElement>({
+  duration: 180,
+  easing: 'ease-out',
+})
+const [routeRows] = useAutoAnimate<HTMLTableSectionElement>({
+  duration: 180,
+  easing: 'ease-out',
+})
 const routeSortModel = computed<RequestRouteSort>({
   get: () => props.routeSort ?? fallbackRouteSort.value,
   set: (value) => {
@@ -127,6 +149,56 @@ function formatCpuTime(value: number): string {
   return `${(value / 60_000).toFixed(1)} min`
 }
 
+function formatAllocationRate(value: number): string {
+  return `${formatBytes(value)}/s`
+}
+
+function formatCpuPercent(value: number): string {
+  if (!Number.isFinite(value)) return '—'
+  return `${Math.max(0, value).toFixed(1)}%`
+}
+
+function runtimePlugin(pluginId: string): PluginRuntimeInfo | undefined {
+  return props.runtimePlugins?.find(
+    (plugin) => plugin.name.toLowerCase() === pluginId.toLowerCase(),
+  )
+}
+
+function shouldOfferIssue(plugin: PluginRankingItem): boolean {
+  return Boolean(
+    (plugin.liveCpuAvailable && plugin.liveCpuPercent >= 50) ||
+    (plugin.liveAllocationAvailable && plugin.liveAllocationBytesPerSecond >= 1_024 * 1_024) ||
+    plugin.loadSharePercent >= 25,
+  )
+}
+
+function isPluginExpanded(pluginId: string): boolean {
+  return expandedPluginIds.value.has(pluginId)
+}
+
+function togglePlugin(pluginId: string): void {
+  const next = new Set(expandedPluginIds.value)
+  if (next.has(pluginId)) next.delete(pluginId)
+  else next.add(pluginId)
+  expandedPluginIds.value = next
+}
+
+function routeKey(route: RequestRouteItem): string {
+  return `${route.scope}-${route.method}-${route.route}`
+}
+
+function isRouteExpanded(route: RequestRouteItem): boolean {
+  return expandedRouteKeys.value.has(routeKey(route))
+}
+
+function toggleRoute(route: RequestRouteItem): void {
+  const key = routeKey(route)
+  const next = new Set(expandedRouteKeys.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedRouteKeys.value = next
+}
+
 function routeTone(route: RequestRouteItem): HealthStatus {
   if (
     route.errorRatePercent >= REQUEST_HEALTH_THRESHOLDS.criticalErrorRatePercent ||
@@ -148,21 +220,24 @@ function routeTone(route: RequestRouteItem): HealthStatus {
       :consumers="consumers"
       :loading="consumersLoading ?? false"
       :error="consumersError"
+      :environment="environment"
       @retry="emit('retry')"
     />
 
     <section class="insight-section">
       <SectionHeading
-        title="插件资源与请求影响排行"
-        description="CPU 与内存分配来自有界线程采样；共享线程不强行归属，内存不是当前驻留堆"
+        title="插件 CPU 与内存分配排行"
+        description="列出已识别的全部插件；当前 CPU 和内存为最近采样周期估算值，区间值用于回看趋势；内存不代表当前驻留堆"
       >
         <template #actions>
-          <SegmentedControl
-            v-model="sortModel"
-            :options="sortOptions"
-            control-label="插件排行排序"
-            compact
-          />
+          <label class="sort-select">
+            <span>排序</span>
+            <select v-model="sortModel" aria-label="插件排行排序">
+              <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+                {{ option.label }}
+              </option>
+            </select>
+          </label>
         </template>
       </SectionHeading>
       <div v-if="resourceStatus" class="resource-quality">
@@ -177,13 +252,17 @@ function routeTone(route: RequestRouteItem): HealthStatus {
         <span class="resource-quality__method insight-mono">
           {{ resourceStatus.resourceAttributionMethod }}
         </span>
+        <span v-if="resourceStatus.liveSampledAtMs > 0">
+          当前样本 {{ formatDateTime(new Date(resourceStatus.liveSampledAtMs).toISOString()) }} ·
+          采样周期 {{ (resourceStatus.liveSampleIntervalMs / 1000).toFixed(1) }} 秒
+        </span>
       </div>
       <SectionState
         :loading="pluginsLoading && !plugins"
         :error="!plugins ? pluginsError : undefined"
         :empty="!pluginsLoading && !pluginsError && !plugins?.length"
-        empty-title="所选时间范围内没有插件活动"
-        empty-description="插件线程或请求被采集后，会在这里显示资源归因与请求指标。"
+        empty-title="暂无插件信息"
+        empty-description="Halo 插件状态刷新后，会在这里显示资源归因与请求指标。"
         @retry="emit('retry')"
       >
         <VAlert
@@ -197,91 +276,123 @@ function routeTone(route: RequestRouteItem): HealthStatus {
           <table class="insight-table plugin-table">
             <thead>
               <tr>
-                <th class="rank-column">排名</th>
+                <th class="rank-column" aria-label="展开详情"></th>
                 <th>插件</th>
                 <th>运行状态</th>
-                <th>CPU 时间 / 占比</th>
-                <th>区间内存分配 / 占比</th>
-                <th class="insight-numeric">归因线程</th>
+                <th>当前 CPU</th>
+                <th>内存分配速率</th>
                 <th>请求耗时占比</th>
-                <th class="insight-numeric">请求延迟</th>
-                <th class="insight-numeric">请求 / 错误率</th>
+                <th class="insight-numeric">请求 / 错误</th>
+                <th>反馈</th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="(plugin, index) in plugins" :key="plugin.pluginId">
-                <td class="rank-column insight-mono">{{ String(index + 1).padStart(2, '0') }}</td>
-                <td>
-                  <div class="plugin-name">
-                    <strong>{{ plugin.displayName || plugin.pluginId }}</strong>
-                    <span class="insight-mono">{{ plugin.pluginId }}</span>
-                  </div>
-                </td>
-                <td>
-                  <StatusBadge :tone="pluginTone(plugin)" :label="pluginStatus(plugin)" />
-                </td>
-                <td>
-                  <div class="resource-value">
-                    <strong class="insight-mono">
-                      {{ plugin.cpuTimeAvailable ? formatCpuTime(plugin.cpuTimeMs) : '—' }}
+            <tbody ref="pluginRows">
+              <template v-for="plugin in plugins" :key="plugin.pluginId">
+                <tr>
+                  <td class="rank-column">
+                    <button
+                      type="button"
+                      class="plugin-expand"
+                      :class="{ 'plugin-expand--open': isPluginExpanded(plugin.pluginId) }"
+                      :aria-expanded="isPluginExpanded(plugin.pluginId)"
+                      :aria-label="`${isPluginExpanded(plugin.pluginId) ? '收起' : '展开'} ${plugin.displayName || plugin.pluginId} 详情`"
+                      @click="togglePlugin(plugin.pluginId)"
+                    >
+                      <RiArrowDownSLine aria-hidden="true" />
+                    </button>
+                  </td>
+                  <td>
+                    <div class="plugin-name">
+                      <strong>{{ plugin.displayName || plugin.pluginId }}</strong>
+                      <span class="insight-mono">{{ plugin.pluginId }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <StatusBadge :tone="pluginTone(plugin)" :label="pluginStatus(plugin)" />
+                  </td>
+                  <td>
+                    <strong class="table-primary-value insight-mono">
+                      {{ plugin.liveCpuAvailable ? formatCpuPercent(plugin.liveCpuPercent) : '—' }}
                     </strong>
-                    <span class="insight-mono">
+                  </td>
+                  <td>
+                    <strong class="table-primary-value insight-mono">
                       {{
-                        plugin.cpuTimeAvailable ? formatPercent(plugin.cpuSharePercent) : '不可用'
-                      }}
-                    </span>
-                  </div>
-                </td>
-                <td>
-                  <div class="resource-value">
-                    <strong class="insight-mono">
-                      {{
-                        plugin.allocatedMemoryAvailable
-                          ? formatBytes(plugin.allocatedMemoryBytes)
+                        plugin.liveAllocationAvailable
+                          ? formatAllocationRate(plugin.liveAllocationBytesPerSecond)
                           : '—'
                       }}
                     </strong>
-                    <span class="insight-mono">
-                      {{
-                        plugin.allocatedMemoryAvailable
-                          ? formatPercent(plugin.allocationSharePercent)
-                          : '不可用'
-                      }}
-                    </span>
-                  </div>
-                </td>
-                <td class="insight-numeric insight-mono">
-                  {{ plugin.attributedThreadsMax || '—' }}
-                </td>
-                <td>
-                  <div class="impact-cell">
-                    <div class="impact-cell__bar">
-                      <i :style="{ width: formatPercent(plugin.loadSharePercent) }"></i>
+                  </td>
+                  <td>
+                    <div class="impact-cell">
+                      <div class="impact-cell__bar">
+                        <i :style="{ width: formatPercent(plugin.loadSharePercent) }"></i>
+                      </div>
+                      <span class="insight-mono">{{ formatPercent(plugin.loadSharePercent) }}</span>
                     </div>
-                    <span class="insight-mono">{{ formatPercent(plugin.loadSharePercent) }}</span>
-                  </div>
-                </td>
-                <td class="insight-numeric">
-                  <div class="stacked-metric insight-mono">
-                    <strong>{{ formatLatency(plugin.averageResponseMs) }}</strong>
-                    <span :class="{ danger: plugin.maximumResponseMs >= 2000 }">
-                      最大 {{ formatLatency(plugin.maximumResponseMs) }}
-                    </span>
-                  </div>
-                </td>
-                <td class="insight-numeric">
-                  <div class="stacked-metric insight-mono">
-                    <strong>{{ formatCompactNumber(plugin.requestCount) }}</strong>
-                    <span :class="{ danger: plugin.errorRatePercent >= 5 }">
-                      错误 {{ formatPercent(plugin.errorRatePercent) }}
-                    </span>
-                  </div>
-                </td>
-              </tr>
+                  </td>
+                  <td class="insight-numeric">
+                    <div class="stacked-metric insight-mono">
+                      <strong>{{ formatCompactNumber(plugin.requestCount) }}</strong>
+                      <span :class="{ danger: plugin.errorRatePercent >= 5 }">
+                        错误 {{ formatPercent(plugin.errorRatePercent) }}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <PluginIssueButton
+                      v-if="shouldOfferIssue(plugin) && runtimePlugin(plugin.pluginId)"
+                      :plugin="runtimePlugin(plugin.pluginId)"
+                      :environment="environment"
+                    />
+                  </td>
+                </tr>
+                <tr v-if="isPluginExpanded(plugin.pluginId)" class="plugin-detail-row">
+                  <td colspan="8">
+                    <Transition name="plugin-detail" appear>
+                      <div class="plugin-detail-grid">
+                        <div class="plugin-detail-item">
+                          <span>区间 CPU 时间</span>
+                          <strong class="insight-mono">{{
+                            plugin.cpuTimeAvailable ? formatCpuTime(plugin.cpuTimeMs) : '不可用'
+                          }}</strong>
+                        </div>
+                        <div class="plugin-detail-item">
+                          <span>区间分配量</span>
+                          <strong class="insight-mono">{{
+                            plugin.allocatedMemoryAvailable
+                              ? formatBytes(plugin.allocatedMemoryBytes)
+                              : '不可用'
+                          }}</strong>
+                        </div>
+                        <div class="plugin-detail-item">
+                          <span>归因线程（当前 / 峰值）</span>
+                          <strong class="insight-mono"
+                            >{{ plugin.liveThreadsAvailable ? plugin.liveThreads : '—' }} /
+                            {{ plugin.attributedThreadsMax || '—' }}</strong
+                          >
+                        </div>
+                        <div class="plugin-detail-item">
+                          <span>平均 / 最大延迟</span>
+                          <strong class="insight-mono"
+                            >{{ formatLatency(plugin.averageResponseMs) }} /
+                            {{ formatLatency(plugin.maximumResponseMs) }}</strong
+                          >
+                        </div>
+                      </div>
+                    </Transition>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
       </SectionState>
+      <p class="resource-note">
+        当前 CPU 以单核 100% 计，多线程可以超过 100%；“—”表示无法归因或样本过期。 每 30
+        秒刷新，内存显示分配速率，插件共享 JVM 堆，无法像独立进程一样计算各自 RSS。
+      </p>
     </section>
 
     <section class="insight-section">
@@ -312,31 +423,25 @@ function routeTone(route: RequestRouteItem): HealthStatus {
           <table class="insight-table route-table">
             <thead>
               <tr>
+                <th class="rank-column" aria-label="展开详情"></th>
                 <th>接口</th>
                 <th>插件 / 作用域</th>
                 <th>状态</th>
-                <th class="insight-numeric" :aria-sort="routeColumnSort('requests')">
-                  请求
+                <th
+                  class="insight-numeric"
+                  :aria-sort="
+                    routeColumnSort('requests') === 'descending' ||
+                    routeColumnSort('errors') === 'descending'
+                      ? 'descending'
+                      : 'none'
+                  "
+                >
+                  请求 / 错误
                   <span
-                    v-if="routeColumnSort('requests') === 'descending'"
-                    class="route-sort-marker"
-                    aria-hidden="true"
-                    >↓</span
-                  >
-                </th>
-                <th class="insight-numeric" :aria-sort="routeColumnSort('errors')">
-                  错误
-                  <span
-                    v-if="routeColumnSort('errors') === 'descending'"
-                    class="route-sort-marker"
-                    aria-hidden="true"
-                    >↓</span
-                  >
-                </th>
-                <th class="insight-numeric" :aria-sort="routeColumnSort('average')">
-                  平均
-                  <span
-                    v-if="routeColumnSort('average') === 'descending'"
+                    v-if="
+                      routeColumnSort('requests') === 'descending' ||
+                      routeColumnSort('errors') === 'descending'
+                    "
                     class="route-sort-marker"
                     aria-hidden="true"
                     >↓</span
@@ -346,24 +451,6 @@ function routeTone(route: RequestRouteItem): HealthStatus {
                   P95
                   <span
                     v-if="routeColumnSort('p95') === 'descending'"
-                    class="route-sort-marker"
-                    aria-hidden="true"
-                    >↓</span
-                  >
-                </th>
-                <th class="insight-numeric" :aria-sort="routeColumnSort('p99')">
-                  P99
-                  <span
-                    v-if="routeColumnSort('p99') === 'descending'"
-                    class="route-sort-marker"
-                    aria-hidden="true"
-                    >↓</span
-                  >
-                </th>
-                <th class="insight-numeric" :aria-sort="routeColumnSort('maximum')">
-                  最大
-                  <span
-                    v-if="routeColumnSort('maximum') === 'descending'"
                     class="route-sort-marker"
                     aria-hidden="true"
                     >↓</span
@@ -380,39 +467,77 @@ function routeTone(route: RequestRouteItem): HealthStatus {
                 </th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="route in routes" :key="`${route.scope}-${route.method}-${route.route}`">
-                <td>
-                  <div class="route-name">
-                    <span class="method-badge">{{ route.method }}</span>
-                    <code>{{ route.route }}</code>
-                  </div>
-                </td>
-                <td class="scope-cell insight-mono">{{ route.scope || 'halo' }}</td>
-                <td><StatusBadge :tone="routeTone(route)" /></td>
-                <td class="insight-numeric insight-mono">
-                  {{ formatCompactNumber(route.requestCount) }}
-                </td>
-                <td class="insight-numeric insight-mono" :class="{ danger: route.errorCount > 0 }">
-                  {{ formatCompactNumber(route.errorCount) }}
-                </td>
-                <td class="insight-numeric insight-mono">
-                  {{ formatLatency(route.averageLatencyMs) }}
-                </td>
-                <td class="insight-numeric insight-mono">{{ formatLatency(route.p95Ms) }}</td>
-                <td class="insight-numeric insight-mono" :class="{ danger: route.p99Ms >= 2000 }">
-                  {{ formatLatency(route.p99Ms) }}
-                </td>
-                <td class="insight-numeric insight-mono">
-                  {{ formatLatency(route.maximumLatencyMs) }}
-                </td>
-                <td
-                  class="insight-numeric insight-mono"
-                  :class="{ danger: route.errorRatePercent >= 5 }"
-                >
-                  {{ formatPercent(route.errorRatePercent) }}
-                </td>
-              </tr>
+            <tbody ref="routeRows">
+              <template v-for="route in routes" :key="routeKey(route)">
+                <tr>
+                  <td class="rank-column">
+                    <button
+                      type="button"
+                      class="plugin-expand"
+                      :class="{ 'plugin-expand--open': isRouteExpanded(route) }"
+                      :aria-expanded="isRouteExpanded(route)"
+                      :aria-label="`${isRouteExpanded(route) ? '收起' : '展开'} ${route.route} 详情`"
+                      @click="toggleRoute(route)"
+                    >
+                      <RiArrowDownSLine aria-hidden="true" />
+                    </button>
+                  </td>
+                  <td>
+                    <div class="route-name">
+                      <span class="method-badge">{{ route.method }}</span>
+                      <code>{{ route.route }}</code>
+                    </div>
+                  </td>
+                  <td class="scope-cell insight-mono">{{ route.scope || 'halo' }}</td>
+                  <td><StatusBadge :tone="routeTone(route)" /></td>
+                  <td class="insight-numeric">
+                    <div class="stacked-metric insight-mono">
+                      <strong>{{ formatCompactNumber(route.requestCount) }}</strong>
+                      <span :class="{ danger: route.errorCount > 0 }">
+                        错误 {{ formatCompactNumber(route.errorCount) }}
+                      </span>
+                    </div>
+                  </td>
+                  <td class="insight-numeric insight-mono">{{ formatLatency(route.p95Ms) }}</td>
+                  <td
+                    class="insight-numeric insight-mono"
+                    :class="{ danger: route.errorRatePercent >= 5 }"
+                  >
+                    {{ formatPercent(route.errorRatePercent) }}
+                  </td>
+                </tr>
+                <tr v-if="isRouteExpanded(route)" class="plugin-detail-row">
+                  <td colspan="7">
+                    <Transition name="plugin-detail" appear>
+                      <div class="plugin-detail-grid route-detail-grid">
+                        <div class="plugin-detail-item">
+                          <span>请求量 / 错误数</span>
+                          <strong class="insight-mono">
+                            {{ formatCompactNumber(route.requestCount) }} /
+                            {{ formatCompactNumber(route.errorCount) }}
+                          </strong>
+                        </div>
+                        <div class="plugin-detail-item">
+                          <span>平均延迟</span>
+                          <strong class="insight-mono">{{
+                            formatLatency(route.averageLatencyMs)
+                          }}</strong>
+                        </div>
+                        <div class="plugin-detail-item">
+                          <span>P99 延迟</span>
+                          <strong class="insight-mono">{{ formatLatency(route.p99Ms) }}</strong>
+                        </div>
+                        <div class="plugin-detail-item">
+                          <span>最大延迟</span>
+                          <strong class="insight-mono">{{
+                            formatLatency(route.maximumLatencyMs)
+                          }}</strong>
+                        </div>
+                      </div>
+                    </Transition>
+                  </td>
+                </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -429,13 +554,130 @@ function routeTone(route: RequestRouteItem): HealthStatus {
 }
 
 .plugin-table {
-  min-width: 1280px;
+  min-width: 860px;
+}
+
+.sort-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--insight-subtle);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sort-select select {
+  min-width: 102px;
+  padding: 6px 26px 6px 9px;
+  border: 1px solid var(--insight-border-strong);
+  border-radius: 7px;
+  color: var(--insight-ink);
+  background: var(--insight-surface);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.sort-select select:hover,
+.sort-select select:focus {
+  border-color: var(--insight-primary);
+  box-shadow: 0 0 0 3px var(--insight-primary-soft);
+  outline: 0;
 }
 
 .rank-column {
-  width: 58px;
+  width: 42px;
   color: var(--insight-subtle);
   text-align: center !important;
+}
+
+.plugin-expand {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  color: var(--insight-subtle);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    transform 180ms ease;
+}
+
+.plugin-expand:hover,
+.plugin-expand:focus-visible {
+  color: var(--insight-primary);
+  background: var(--insight-primary-soft);
+}
+
+.plugin-expand svg {
+  width: 16px;
+  height: 16px;
+}
+
+.plugin-expand--open {
+  color: var(--insight-primary);
+  transform: rotate(180deg);
+}
+
+.table-primary-value {
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.plugin-detail-row td {
+  padding: 0 15px 12px 57px;
+  border-bottom: 1px solid var(--insight-border);
+  background: var(--insight-surface-muted);
+}
+
+.plugin-detail-grid {
+  display: grid;
+  gap: 8px 20px;
+  padding: 11px 12px;
+  border-left: 2px solid var(--insight-primary);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.plugin-detail-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.plugin-detail-item span {
+  color: var(--insight-muted);
+  font-size: 10px;
+}
+
+.plugin-detail-item strong {
+  overflow: hidden;
+  color: var(--insight-ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-detail-enter-active,
+.plugin-detail-leave-active {
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.plugin-detail-enter-from,
+.plugin-detail-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .danger {
@@ -507,6 +749,13 @@ function routeTone(route: RequestRouteItem): HealthStatus {
   font-size: 9px;
 }
 
+.resource-note {
+  margin: 8px 14px 0;
+  color: var(--insight-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
 .resource-value,
 .stacked-metric {
   display: flex;
@@ -532,7 +781,11 @@ function routeTone(route: RequestRouteItem): HealthStatus {
 }
 
 .route-table {
-  min-width: 1120px;
+  min-width: 760px;
+}
+
+.route-detail-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .route-sort-marker {
@@ -589,6 +842,18 @@ function routeTone(route: RequestRouteItem): HealthStatus {
 
   .resource-quality__method {
     margin-left: 0;
+  }
+
+  .plugin-detail-row td {
+    padding-left: 15px;
+  }
+
+  .plugin-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .route-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

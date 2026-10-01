@@ -3,13 +3,16 @@ import { computed } from 'vue'
 
 import SectionHeading from '@/components/common/SectionHeading.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import PluginIssueButton from '@/components/common/PluginIssueButton.vue'
 import type { AlertIncident, HealthStatus, PluginRuntimeInfo } from '@/types/insight'
+import { hasPluginFailure, type IssueEnvironment } from '@/utils/pluginIssue'
 import { summarizeAlerts } from '@/utils/alertStatus'
 import { formatDateTime, severityTone } from '@/utils/format'
 
 const props = defineProps<{
   plugins: PluginRuntimeInfo[]
   activeAlerts: AlertIncident[]
+  environment?: IssueEnvironment
 }>()
 
 const summary = computed(() => {
@@ -92,6 +95,11 @@ function phaseLabel(plugin: PluginRuntimeInfo): string {
             <time v-if="plugin.lastStartTime" :datetime="plugin.lastStartTime">
               启动于 {{ formatDateTime(plugin.lastStartTime) }}
             </time>
+            <PluginIssueButton
+              v-if="hasPluginFailure(plugin)"
+              :plugin="plugin"
+              :environment="environment"
+            />
           </div>
         </div>
       </div>

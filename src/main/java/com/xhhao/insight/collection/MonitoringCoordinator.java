@@ -305,10 +305,10 @@ public class MonitoringCoordinator {
                     + "history capacity limit", dropped);
             }
             events.record("storage", "warning", "sqlite", "历史写入已暂停",
-                "Insight 数据库达到容量上限，实时监控继续运行");
+                "运行洞察数据库达到容量上限，实时监控继续运行");
         } else if (!isPaused && wasPaused) {
             events.record("storage", "info", "sqlite", "历史写入已恢复",
-                "Insight 数据库已低于容量上限");
+                "运行洞察数据库已低于容量上限");
         }
     }
 

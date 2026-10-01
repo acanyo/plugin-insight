@@ -1,5 +1,5 @@
 .insight-shell {
-  --insight-canvas: #f5f6f8;
+  --insight-canvas: #f3f6fa;
   --insight-surface: #ffffff;
   --insight-surface-muted: #f8fafc;
   --insight-ink: #111827;
@@ -58,9 +58,17 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--insight-border);
-  border-radius: 6px;
+  border-radius: 10px;
   background: var(--insight-surface);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  box-shadow: 0 2px 8px rgb(15 23 42 / 4%);
+  transition:
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.insight-section:hover {
+  border-color: var(--insight-border-strong);
+  box-shadow: 0 8px 22px rgb(15 23 42 / 7%);
 }
 
 .insight-refresh-error {
@@ -81,7 +89,7 @@
 
 .insight-table th,
 .insight-table td {
-  padding: 11px 15px;
+  padding: 12px 15px;
   border-bottom: 1px solid var(--insight-border);
   text-align: left;
   vertical-align: middle;
@@ -89,7 +97,7 @@
 
 .insight-table th {
   color: var(--insight-muted);
-  background: var(--insight-surface-muted);
+  background: linear-gradient(180deg, #fbfcfe 0%, var(--insight-surface-muted) 100%);
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
@@ -100,7 +108,11 @@
 }
 
 .insight-table tbody tr:hover {
-  background: #f9fafb;
+  background: #f7faff;
+}
+
+.insight-table tbody tr {
+  transition: background-color 140ms ease;
 }
 
 .insight-numeric {

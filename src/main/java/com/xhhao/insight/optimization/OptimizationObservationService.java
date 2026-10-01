@@ -92,7 +92,7 @@ public class OptimizationObservationService {
 
     public synchronized void interruptPending() {
         for (var value : list()) {
-            if (value.active()) { save(value.finish("interrupted", null, "Insight 或 Halo 重启，观察中断，可重新发起")); }
+            if (value.active()) { save(value.finish("interrupted", null, "运行洞察或 Halo 重启，观察中断，可重新发起")); }
         }
     }
 

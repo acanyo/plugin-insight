@@ -13,6 +13,7 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@formkit/auto-animate": "^0.10.0",
     "@halo-dev/api-client": "^2.26.0",
     "@halo-dev/components": "^2.26.0",
     "@halo-dev/ui-shared": "^2.26.0",
@@ -21,7 +22,6 @@
     "vue": "^3.5.40"
   },
   "devDependencies": {
-    "vite": "^8.2.0",
     "@halo-dev/ui-plugin-bundler-kit": "^2.26.0",
     "@iconify-json/ri": "^1.2.10",
     "@tsconfig/node24": "^24.0.4",
@@ -45,6 +45,7 @@
     "sass": "^1.102.0",
     "typescript": "~6.0.0",
     "unplugin-icons": "^23.0.1",
+    "vite": "^8.2.0",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.7"
   },

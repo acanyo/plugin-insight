@@ -2,6 +2,7 @@ package com.xhhao.insight.notification;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -32,6 +33,19 @@ public class NotificationDispatcher implements DisposableBean {
     }
 
     public synchronized CompletableFuture<List<NotificationResult>> dispatch(AlertNotification notification) {
+        return dispatch(notification, null);
+    }
+
+    /** Dispatches a notification through one named channel without relaying it to other channels. */
+    public synchronized CompletableFuture<List<NotificationResult>> dispatchTo(
+        AlertNotification notification, String channel
+    ) {
+        return dispatch(notification, Set.of(channel));
+    }
+
+    private CompletableFuture<List<NotificationResult>> dispatch(
+        AlertNotification notification, Set<String> selectedChannels
+    ) {
         if (executor == null || executor.isShutdown()) {
             return CompletableFuture.failedFuture(new IllegalStateException("通知工作线程未运行"));
         }
@@ -43,6 +57,9 @@ public class NotificationDispatcher implements DisposableBean {
             try {
                 var result = new ArrayList<NotificationResult>();
                 for (var channel : channels) {
+                    if (selectedChannels != null && !selectedChannels.contains(channel.name())) {
+                        continue;
+                    }
                     DeliveryRepository.Delivery delivery;
                     try { delivery = deliveries.enqueue(channel.name(), notification, System.currentTimeMillis()); }
                     catch (RuntimeException unavailable) {

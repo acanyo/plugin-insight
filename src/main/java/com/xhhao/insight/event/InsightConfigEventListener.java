@@ -28,7 +28,7 @@ public class InsightConfigEventListener {
                 .limit(MAX_GROUPS)
                 .forEach(groups::add);
         }
-        events.record("configuration", "info", "insight", "Insight 配置已变更",
+        events.record("configuration", "info", "insight", "运行洞察配置已变更",
             groups.isEmpty() ? "插件设置已更新" : "已更新分组：" + String.join("、", groups));
     }
 

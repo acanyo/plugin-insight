@@ -5,6 +5,7 @@ import java.util.List;
 /** One bounded sampling interval and the coverage needed to interpret it honestly. */
 public record ResourceAttributionSample(
     long sampledAtMs,
+    long intervalMs,
     boolean cpuAvailable,
     boolean allocationAvailable,
     boolean truncated,

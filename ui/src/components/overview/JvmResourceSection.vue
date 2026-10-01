@@ -42,15 +42,15 @@ const details = computed<ResourceDetail[]>(() => [
   <section class="insight-section">
     <SectionHeading
       title="JVM 与宿主资源"
-      description="内存、线程与垃圾回收；Linux 系统内存按 MemAvailable 口径计算"
+      description="内存、线程与垃圾回收；运行环境内存按 MemAvailable 口径计算"
     />
     <ResourceSectionLayout>
       <template #meters>
         <ResourceMeter label="JVM 堆" :value="overview.jvm.heapUsedPercent" />
         <ResourceMeter
-          label="系统内存"
+          label="运行环境内存"
           :value="systemMemoryPercent"
-          :detail="`${formatBytes(overview.runtime.systemMemoryUsedBytes)} / ${formatBytes(overview.runtime.systemMemoryTotalBytes)} · 可用内存口径`"
+          :detail="`${formatBytes(overview.runtime.systemMemoryUsedBytes)} / ${formatBytes(overview.runtime.systemMemoryTotalBytes)} · 运行环境可用内存口径`"
         />
       </template>
       <ResourceDetailGrid :items="details" />

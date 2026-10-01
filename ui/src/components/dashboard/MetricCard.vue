@@ -32,6 +32,17 @@ defineProps<{
   border-right: 1px solid var(--insight-border);
   border-radius: 0;
   background: var(--insight-surface);
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.metric-card:hover {
+  z-index: 1;
+  background: var(--insight-surface-muted);
+  box-shadow: 0 7px 18px rgb(15 23 42 / 8%);
+  transform: translateY(-2px);
 }
 
 .metric-card__topline {

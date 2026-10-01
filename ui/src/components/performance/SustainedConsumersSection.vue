@@ -4,13 +4,16 @@ import { computed } from 'vue'
 import SectionHeading from '@/components/common/SectionHeading.vue'
 import SectionState from '@/components/common/SectionState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import PluginIssueButton from '@/components/common/PluginIssueButton.vue'
 import type { ConsumerPressureLevel, HealthStatus, PluginConsumerItem } from '@/types/insight'
+import type { IssueEnvironment } from '@/utils/pluginIssue'
 import { formatBytes, formatPercent } from '@/utils/format'
 
 const props = defineProps<{
   consumers?: PluginConsumerItem[]
   loading: boolean
   error?: string
+  environment?: IssueEnvironment
 }>()
 
 const emit = defineEmits<{ retry: [] }>()
@@ -100,6 +103,13 @@ function consumerTone(level: ConsumerPressureLevel): HealthStatus {
               {{ formatPercent(consumer.requestLoadSharePercent) }}
             </span>
           </div>
+          <div class="consumer-action">
+            <PluginIssueButton
+              v-if="consumer.sustained"
+              :consumer="consumer"
+              :environment="environment"
+            />
+          </div>
         </div>
       </div>
     </SectionState>
@@ -122,7 +132,7 @@ function consumerTone(level: ConsumerPressureLevel): HealthStatus {
   grid-template-columns: 32px minmax(180px, 1.3fr) minmax(150px, 1fr) repeat(
       3,
       minmax(92px, 0.7fr)
-    ) minmax(170px, 1fr);
+    ) minmax(170px, 1fr) 92px;
   gap: 14px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--insight-border);
@@ -167,6 +177,11 @@ function consumerTone(level: ConsumerPressureLevel): HealthStatus {
 .consumer-note {
   color: var(--insight-muted);
   font-size: 10px;
+}
+
+.consumer-action {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .consumer-signal {

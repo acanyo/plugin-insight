@@ -7,7 +7,7 @@ spec:
     reasonType: insight-alert-state-changed
     language: default
   template:
-    title: "[Halo Insight] [(${title != null ? title : '运行洞察通知'})]"
+    title: "[运行洞察] [(${title != null ? title : '运行洞察通知'})]"
     rawBody: |
       [(${message != null ? message : ''})]
 
@@ -29,4 +29,4 @@ spec:
         阈值：<span th:text="${threshold != null ? threshold : ''}"></span><br/>
         时间：<span th:text="${occurredAt != null ? occurredAt : ''}"></span>
       </p>
-      <p><a th:href="|${site.url}${consoleUrl}|">查看 Halo Insight · 运行洞察</a></p>
+      <p><a th:href="|${site.url}${consoleUrl}|">查看运行洞察</a></p>

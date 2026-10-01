@@ -124,6 +124,7 @@ public class HaloRuntimeService {
             metadata == null ? "unknown" : metadata.getName(),
             spec == null ? null : spec.getDisplayName(),
             spec == null ? null : spec.getVersion(),
+            spec == null ? null : spec.getIssues(),
             spec != null && Boolean.TRUE.equals(spec.getEnabled()),
             status == null || status.getPhase() == null ? "UNKNOWN" : status.getPhase().name(),
             status == null ? null : status.getLastStartTime()
