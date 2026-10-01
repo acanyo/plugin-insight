@@ -30,7 +30,8 @@ SQLite 保存结构化指标、事件、诊断摘要和通知队列；管理员�
 - 业务任务：Halo 备份耗时与失败、宿主公开线程池活动数和待执行队列
 - 故障定位：近期日志筛选、异常堆栈聚合、热点线程和死锁线程栈
 
-使用入口与能力边界见 [诊断功能说明](docs/diagnostics.md)。
+从 [Releases](https://github.com/acanyo/plugin-insight/releases) 下载插件 JAR，在 Halo Console 的
+“插件”页面上传安装并启用，然后从侧边栏打开“运行洞察”。
 
 ## 界面预览
 
