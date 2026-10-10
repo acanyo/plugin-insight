@@ -49,6 +49,10 @@ public class AlertEngine {
     private final EnumSet<AlertRule> suspendedRules = EnumSet.noneOf(AlertRule.class);
 
     private boolean activeIncidentsLoaded;
+    private AlertSceneSnapshotService scenes;
+
+    @Autowired
+    void captureScenes(AlertSceneSnapshotService scenes) { this.scenes = scenes; }
 
     @Autowired
     public AlertEngine(
@@ -216,7 +220,7 @@ public class AlertEngine {
         long nowMs
     ) {
         AlertIncident opened = AlertIncidentTransitions.open(
-            rule, input, threshold, breachedAtMs, nowMs);
+            rule, input, threshold, breachedAtMs, nowMs, scenes == null ? null : scenes.capture(input, nowMs));
         activeByRule.put(rule, opened);
         pendingSinceMs.remove(rule);
         saveRealtimeIncident(rule, opened);

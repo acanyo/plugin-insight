@@ -46,12 +46,24 @@ public class DiagnosticRecords {
     }
 
     public <T> List<T> list(String kind, Class<T> type, int limit) {
+        return list(kind, null, type, limit);
+    }
+
+    public <T> List<T> listForPlugin(String kind, String pluginId, Class<T> type, int limit) {
+        return list(kind, pluginId, type, limit);
+    }
+
+    private <T> List<T> list(String kind, String pluginId, Class<T> type, int limit) {
         return database.read(connection -> {
             var result = new ArrayList<T>();
-            try (var statement = connection.prepareStatement("""
-                SELECT payload FROM diagnostic_record WHERE kind=? ORDER BY updated_at_ms DESC,id DESC LIMIT ?
-                """)) {
-                statement.setString(1, kind); statement.setInt(2, Math.clamp(limit, 1, 2000));
+            String sql = "SELECT payload FROM diagnostic_record WHERE kind=?"
+                + (pluginId == null ? "" : " AND json_valid(payload) AND json_extract(payload,'$.pluginId')=?")
+                + " ORDER BY updated_at_ms DESC,id DESC LIMIT ?";
+            try (var statement = connection.prepareStatement(sql)) {
+                statement.setString(1, kind);
+                int parameter = 2;
+                if (pluginId != null) statement.setString(parameter++, pluginId);
+                statement.setInt(parameter, Math.clamp(limit, 1, 2000));
                 try (var rows = statement.executeQuery()) {
                     while (rows.next()) {
                         try { result.add(json.readValue(rows.getString(1), type)); }

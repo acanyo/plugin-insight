@@ -11,6 +11,7 @@ import com.xhhao.insight.metrics.RequestMetric;
 import com.xhhao.insight.metrics.RequestMetricsRegistry;
 import com.xhhao.insight.metrics.RequestWindowSnapshot;
 import com.xhhao.insight.optimization.OptimizationRuntimePolicy;
+import com.xhhao.insight.overhead.InsightOverheadMetrics;
 import com.xhhao.insight.resource.PluginResourceSampler;
 import com.xhhao.insight.runtime.MonitoringState;
 import com.xhhao.insight.storage.capacity.HistoryWriteGate;
@@ -57,6 +58,10 @@ public class MonitoringCoordinator {
     private final MonitoringSchedulerFactory schedulerFactory;
     private final OptimizationRuntimePolicy optimizationPolicy;
     private final AdvancedAlertSignals advancedSignals;
+    private InsightOverheadMetrics overhead;
+
+    @Autowired
+    void measureOverhead(InsightOverheadMetrics overhead) { this.overhead = overhead; }
 
     private volatile ScheduledFuture<?> task;
     private ScheduledExecutorService executor;
@@ -193,7 +198,8 @@ public class MonitoringCoordinator {
 
     private void safeTick() {
         try {
-            tick();
+            if (overhead == null) tick();
+            else overhead.run(InsightOverheadMetrics.Operation.COLLECTION, this::tick);
         } catch (RuntimeException error) {
             if (state.collectionFailed(error)) {
                 events.recordFailure("collector", "warning", "system", "监控采集任务异常",

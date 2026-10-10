@@ -69,6 +69,7 @@ public class RequestMetricRepository {
                    SUM(latency_gt_5000ms) AS latency_gt_5000ms
             FROM request_metric_minute
             WHERE bucket_start_ms >= ? AND bucket_start_ms < ?
+            %s
             GROUP BY scope, route, method
         )
         SELECT * FROM aggregated
@@ -194,15 +195,25 @@ public class RequestMetricRepository {
         RequestRouteSort sort,
         int limit
     ) {
+        return findRoutes(fromInclusiveMs, toExclusiveMs, sort, limit, null);
+    }
+
+    public List<RequestRouteSummary> findPluginRoutes(String pluginId, long fromInclusiveMs, long toExclusiveMs, int limit) {
+        return findRoutes(fromInclusiveMs, toExclusiveMs, RequestRouteSort.P95_DURATION, limit, pluginId);
+    }
+
+    private List<RequestRouteSummary> findRoutes(long fromInclusiveMs, long toExclusiveMs, RequestRouteSort sort, int limit, String pluginId) {
         QueryRangeValidator.validate(fromInclusiveMs, toExclusiveMs, limit);
-        String sql = AGGREGATE_CTE + " ORDER BY " + orderExpression(sort)
+        String sql = AGGREGATE_CTE.formatted(pluginId == null ? "" : "AND scope = ?") + " ORDER BY " + orderExpression(sort)
             + " DESC, scope ASC, route ASC, method ASC LIMIT ?";
         return connectionManager.read(connection -> {
             List<RequestRouteSummary> summaries = new ArrayList<>();
             try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 statement.setLong(1, fromInclusiveMs);
                 statement.setLong(2, toExclusiveMs);
-                statement.setInt(3, limit);
+                int parameter = 3;
+                if (pluginId != null) statement.setString(parameter++, pluginId);
+                statement.setInt(parameter, limit);
                 try (ResultSet resultSet = statement.executeQuery()) {
                     while (resultSet.next()) {
                         summaries.add(mapSummary(resultSet));

@@ -2,6 +2,8 @@ package com.xhhao.insight.storage.database;
 
 import com.xhhao.insight.storage.StorageException;
 import com.xhhao.insight.storage.health.StorageHealth;
+import com.xhhao.insight.overhead.InsightOverheadMetrics;
+import com.xhhao.insight.overhead.InsightOverheadMetrics.Operation;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,6 +30,7 @@ public class SqliteConnectionManager implements AutoCloseable {
     private final Path databasePath;
     private final String jdbcUrl;
     private final StorageHealth health;
+    private final InsightOverheadMetrics overhead;
     private final SqliteDriverLease driverLease = new SqliteDriverLease();
     private final ReentrantLock writeLock = new ReentrantLock();
     private final ReentrantReadWriteLock lifecycleLock = new ReentrantReadWriteLock(true);
@@ -36,8 +39,8 @@ public class SqliteConnectionManager implements AutoCloseable {
     private volatile boolean closed;
 
     @Autowired
-    public SqliteConnectionManager(PluginsRootGetter pluginsRootGetter, StorageHealth health) {
-        this(resolveDatabasePath(pluginsRootGetter), health);
+    public SqliteConnectionManager(PluginsRootGetter pluginsRootGetter, StorageHealth health, InsightOverheadMetrics overhead) {
+        this(resolveDatabasePath(pluginsRootGetter), health, overhead);
     }
 
     public SqliteConnectionManager(Path databasePath) {
@@ -45,11 +48,16 @@ public class SqliteConnectionManager implements AutoCloseable {
     }
 
     public SqliteConnectionManager(Path databasePath, StorageHealth health) {
+        this(databasePath, health, null);
+    }
+
+    public SqliteConnectionManager(Path databasePath, StorageHealth health, InsightOverheadMetrics overhead) {
         this.databasePath = Objects.requireNonNull(databasePath, "databasePath must not be null")
             .toAbsolutePath()
             .normalize();
         this.jdbcUrl = "jdbc:sqlite:" + this.databasePath;
         this.health = Objects.requireNonNull(health, "health must not be null");
+        this.overhead = overhead;
     }
 
     private static Path resolveDatabasePath(PluginsRootGetter pluginsRootGetter) {
@@ -83,6 +91,13 @@ public class SqliteConnectionManager implements AutoCloseable {
     }
 
     public <T> T write(SqlWork<T> work) {
+        try (var scope = overhead == null ? null : overhead.begin(Operation.SQL_WRITE)) {
+            try { return executeWrite(work); }
+            catch (RuntimeException | Error failure) { if (scope != null) scope.failed(); throw failure; }
+        }
+    }
+
+    private <T> T executeWrite(SqlWork<T> work) {
         Objects.requireNonNull(work, "work must not be null");
         lifecycleLock.readLock().lock();
         writeLock.lock();
@@ -127,6 +142,13 @@ public class SqliteConnectionManager implements AutoCloseable {
     }
 
     private <T> T executeRead(SqlWork<T> work, boolean transaction) {
+        try (var scope = overhead == null ? null : overhead.begin(Operation.SQL_READ)) {
+            try { return executeReadMeasured(work, transaction); }
+            catch (RuntimeException | Error failure) { if (scope != null) scope.failed(); throw failure; }
+        }
+    }
+
+    private <T> T executeReadMeasured(SqlWork<T> work, boolean transaction) {
         Objects.requireNonNull(work, "work must not be null");
         lifecycleLock.readLock().lock();
         try {

@@ -3,6 +3,7 @@ package com.xhhao.insight.api;
 import com.xhhao.insight.api.model.ClearDataResponse;
 import com.xhhao.insight.alert.AlertEngine;
 import com.xhhao.insight.event.EventRecorder;
+import com.xhhao.insight.optimization.OptimizationObservationService;
 import com.xhhao.insight.storage.database.SqliteStorageLifecycle;
 import com.xhhao.insight.storage.repository.AlertIncidentRepository;
 import com.xhhao.insight.storage.repository.MonitorEventRepository;
@@ -31,6 +32,7 @@ public class MonitoringDataCommandService {
     private final AlertIncidentRepository alerts;
     private final AlertEngine alertEngine;
     private final EventRecorder eventRecorder;
+    private final OptimizationObservationService observations;
 
     /**
      * Creates the command service with access to the live alert evaluator.
@@ -45,7 +47,8 @@ public class MonitoringDataCommandService {
         MonitorEventRepository events,
         AlertIncidentRepository alerts,
         EventRecorder eventRecorder,
-        AlertEngine alertEngine
+        AlertEngine alertEngine,
+        OptimizationObservationService observations
     ) {
         this.storage = storage;
         this.retention = retention;
@@ -56,6 +59,22 @@ public class MonitoringDataCommandService {
         this.alerts = alerts;
         this.eventRecorder = eventRecorder;
         this.alertEngine = alertEngine;
+        this.observations = observations;
+    }
+
+    public MonitoringDataCommandService(
+        SqliteStorageLifecycle storage,
+        RetentionService retention,
+        RequestMetricRepository requestMetrics,
+        PluginMetricRepository pluginMetrics,
+        PluginResourceRepository pluginResources,
+        MonitorEventRepository events,
+        AlertIncidentRepository alerts,
+        EventRecorder eventRecorder,
+        AlertEngine alertEngine
+    ) {
+        this(storage, retention, requestMetrics, pluginMetrics, pluginResources, events, alerts,
+            eventRecorder, alertEngine, null);
     }
 
     /**
@@ -81,15 +100,7 @@ public class MonitoringDataCommandService {
             throw new IllegalStateException("Monitoring storage is unavailable");
         }
         int deleted = switch (scope) {
-            case "all" -> {
-                // Serialize the bulk delete with alert evaluation so no new incident can be
-                // persisted between deleting the rows and resetting the in-memory evaluator.
-                synchronized (alertEngine == null ? this : alertEngine) {
-                    int cleared = retention.clearAllData().totalDeleted();
-                    clearLiveAlertState();
-                    yield cleared;
-                }
-            }
+            case "all" -> clearAllData();
             case "system" -> retention.clearSystemData();
             case "requests" -> requestMetrics.deleteAll();
             case "plugins" -> pluginMetrics.deleteAll() + pluginResources.deleteAll();
@@ -107,6 +118,18 @@ public class MonitoringDataCommandService {
         eventRecorder.record("data", "info", "sqlite", "监控数据已清理",
             "清理范围 " + scope + "，共删除 " + deleted + " 行");
         return new ClearDataResponse(scope, deleted);
+    }
+
+    private int clearAllData() {
+        // Pause observation and alert writes until both durable and live history are cleared.
+        synchronized (observations == null ? this : observations) {
+            synchronized (alertEngine == null ? this : alertEngine) {
+                int cleared = retention.clearAllData().totalDeleted();
+                clearLiveAlertState();
+                if (observations != null) { observations.historyCleared(); }
+                return cleared;
+            }
+        }
     }
 
     private void clearLiveAlertState() {

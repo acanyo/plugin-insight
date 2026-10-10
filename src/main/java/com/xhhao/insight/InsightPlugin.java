@@ -10,6 +10,8 @@ import com.xhhao.insight.event.HaloPluginEventWatcher;
 import com.xhhao.insight.notification.AcknowledgedNotificationReconciler;
 import com.xhhao.insight.optimization.OptimizationRuntimePolicy;
 import com.xhhao.insight.storage.database.SqliteStorageLifecycle;
+import com.xhhao.insight.overhead.InsightOverheadMetrics;
+import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import run.halo.app.plugin.BasePlugin;
@@ -37,6 +39,10 @@ public class InsightPlugin extends BasePlugin {
     private final OptimizationRuntimePolicy optimizationPolicy;
     private final DiagnosticsLifecycle diagnostics;
     private final NotificationDispatcher notificationDispatcher;
+    private InsightOverheadMetrics overhead;
+
+    @Autowired
+    void measureOverhead(InsightOverheadMetrics overhead) { this.overhead = overhead; }
 
     public InsightPlugin(PluginContext pluginContext, SqliteStorageLifecycle storage,
         MonitoringCoordinator coordinator, EventRecorder events,
@@ -61,6 +67,7 @@ public class InsightPlugin extends BasePlugin {
 
     @Override
     public void start() {
+        if (overhead != null) overhead.reset();
         boolean storageAvailable = storage.initialize();
         optimizationPolicy.initialize(storageAvailable);
         notificationDispatcher.start();

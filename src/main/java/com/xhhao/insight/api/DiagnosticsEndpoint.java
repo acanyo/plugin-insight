@@ -37,7 +37,10 @@ public class DiagnosticsEndpoint implements CustomEndpoint {
                 InsightApiInput.integerQuery(request, "source", 0), DiagnosticHttp.query(request, "level", "all"),
                 DiagnosticHttp.query(request, "keyword", ""),
                 InsightApiInput.integerQuery(request, "page", 1),
-                InsightApiInput.integerQuery(request, "pageSize", 20))))
+                InsightApiInput.integerQuery(request, "pageSize", 20),
+                DiagnosticHttp.query(request, "pluginId", ""),
+                DiagnosticHttp.query(request, "snapshotId", ""),
+                DiagnosticHttp.query(request, "mode", "query"))))
             .GET("business-tasks", request -> http.json(tasks::snapshot))
             .GET("business-task-history", request -> http.json(tasks::history))
             .build();

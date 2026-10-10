@@ -13,7 +13,11 @@ import { usePolling } from './usePolling'
 
 export type { ResourceState } from './insight/resourceState'
 
-export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<TimeRange>) {
+export function useInsightDashboard(
+  activeTab: Ref<DashboardTab>,
+  range: Ref<TimeRange>,
+  optimizationVisible: Ref<boolean> = ref(false),
+) {
   const overviewResource = useOverviewResource()
   const performanceResources = usePerformanceResources(range)
   const alertsResource = useAlertsResource(() => overviewResource.refreshOverview(true))
@@ -42,12 +46,17 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
     const requestedAlertStatus = alertsResource.alertStatus.value
     if (!silent) refreshing.value = true
 
-    const tasks: Promise<boolean>[] = [
-      overviewResource.refreshOverview(silent),
-      optimizationResource.refreshOptimization(silent),
-      performanceResources.refreshTrends(requestedRange, silent),
-      alertsResource.refreshAlerts(requestedAlertStatus, silent),
-    ]
+    const tasks: Promise<boolean>[] = [overviewResource.refreshOverview(silent)]
+
+    if (optimizationVisible.value) {
+      tasks.push(optimizationResource.refreshOptimization(silent))
+    }
+    if (requestedTab === 'overview' || requestedTab === 'performance') {
+      tasks.push(performanceResources.refreshTrends(requestedRange, silent))
+    }
+    if (requestedTab === 'alerts') {
+      tasks.push(alertsResource.refreshAlerts(requestedAlertStatus, silent))
+    }
 
     if (requestedTab === 'performance') {
       tasks.push(
@@ -87,13 +96,19 @@ export function useInsightDashboard(activeTab: Ref<DashboardTab>, range: Ref<Tim
   })
 
   watch([range, activeTab], () => void refresh())
+  watch(optimizationVisible, (visible) => {
+    if (visible) void optimizationResource.refreshOptimization()
+    else optimizationResource.abortOptimizationRequests()
+  })
   watch(performanceResources.pluginSort, () => {
     if (activeTab.value === 'performance') void performanceResources.refreshPlugins()
   })
   watch(performanceResources.routeSort, () => {
     if (activeTab.value === 'performance') void performanceResources.refreshRoutes()
   })
-  watch(alertsResource.alertStatus, () => void alertsResource.refreshAlerts())
+  watch(alertsResource.alertStatus, () => {
+    if (activeTab.value === 'alerts') void alertsResource.refreshAlerts()
+  })
   watch(
     () => [eventTimeline.eventFilters.type, eventTimeline.eventFilters.severity],
     () => {

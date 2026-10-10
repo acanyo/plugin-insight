@@ -19,6 +19,7 @@ public record PluginConsumerItem(
     double allocationSharePercent,
     double requestLoadSharePercent,
     double allocatedBytesPerMinute,
-    int attributedThreadsMax
+    int attributedThreadsMax,
+    PressureScoreBreakdown breakdown
 ) {
 }

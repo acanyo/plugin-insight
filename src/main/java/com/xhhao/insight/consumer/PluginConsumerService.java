@@ -40,6 +40,16 @@ public class PluginConsumerService {
     }
 
     public List<PluginConsumerItem> find(long fromInclusiveMs, long toExclusiveMs) {
+        var ranking = findAll(fromInclusiveMs, toExclusiveMs);
+        return List.copyOf(ranking.subList(0, Math.min(MAX_RESULTS, ranking.size())));
+    }
+
+    public PluginConsumerItem findPlugin(String pluginId, long fromInclusiveMs, long toExclusiveMs) {
+        return findAll(fromInclusiveMs, toExclusiveMs).stream()
+            .filter(item -> item.pluginId().equals(pluginId)).findFirst().orElse(null);
+    }
+
+    private List<PluginConsumerItem> findAll(long fromInclusiveMs, long toExclusiveMs) {
         Map<String, PluginRuntimeInfo> runtime = identities.index(state.halo().plugins());
         Map<String, Evidence> evidence = new LinkedHashMap<>();
         for (PluginResourcePersistenceSummary summary : resources.findPersistence(
@@ -81,7 +91,7 @@ public class PluginConsumerService {
             .thenComparing(Comparator.comparingInt(PluginConsumerItem::topConsumerMinutes)
                 .reversed())
             .thenComparing(PluginConsumerItem::pluginId));
-        return List.copyOf(ranking.subList(0, Math.min(MAX_RESULTS, ranking.size())));
+        return ranking;
     }
 
     private static long saturatedAdd(long left, long right) {
@@ -185,7 +195,13 @@ public class PluginConsumerService {
                 plugin.name(), displayName, plugin.enabled(), plugin.phase(), score,
                 level(score), dominant, sustained, confidence, observedMinutes, activeMinutes,
                 topMinutes, persistencePercent, cpuShare, allocationShare, requestShare,
-                bytesPerMinute, resources == null ? 0 : resources.liveThreadsMax());
+                bytesPerMinute, resources == null ? 0 : resources.liveThreadsMax(),
+                PressureScoreBreakdown.of(cpuPressure, allocationPressure, requestPressure, threadPressure,
+                    cpuShare, allocationShare, requestShare, ratio(topCpuMinutes, resourceMinutes),
+                    ratio(topAllocationMinutes, resourceMinutes), ratio(topRequestMinutes, requestMinutes),
+                    cpuCorePercent, bytesPerMinute, requestBusyPercent,
+                    resources == null ? 0 : resources.cpuActiveMinutes(),
+                    resources == null ? 0 : resources.threadPresentMinutes(), resourceMinutes));
         }
 
         private static String dominantResource(double[] components) {

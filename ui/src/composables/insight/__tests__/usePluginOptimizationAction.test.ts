@@ -14,7 +14,10 @@ vi.mock('@halo-dev/components', () => ({
   },
 }))
 
-vi.mock('@/api/diagnostics', () => ({ prepareObservation: vi.fn(), observationAction: vi.fn() }))
+vi.mock('@/api/diagnostics', () => ({
+  prepareObservation: vi.fn<typeof diagnostics.prepareObservation>(),
+  observationAction: vi.fn<typeof diagnostics.observationAction>(),
+}))
 
 vi.mock('@/api/pluginManagement', () => ({
   disablePlugin: vi.fn<typeof pluginManagement.disablePlugin>(),
@@ -57,13 +60,13 @@ describe('usePluginOptimizationAction', () => {
 
   it('does not disable a plugin when the baseline could not be persisted', async () => {
     vi.mocked(diagnostics.prepareObservation).mockRejectedValue(new Error('storage unavailable'))
-    await usePluginOptimizationAction(vi.fn()).disablePlugin('search', '搜索')
+    await usePluginOptimizationAction(vi.fn<() => Promise<void>>()).disablePlugin('search', '搜索')
     expect(pluginManagement.disablePlugin).not.toHaveBeenCalled()
   })
 
   it('cancels the observation when Halo rejects the disable request', async () => {
     vi.mocked(pluginManagement.disablePlugin).mockRejectedValue(new Error('permission denied'))
-    await usePluginOptimizationAction(vi.fn()).disablePlugin('search', '搜索')
+    await usePluginOptimizationAction(vi.fn<() => Promise<void>>()).disablePlugin('search', '搜索')
     expect(diagnostics.observationAction).toHaveBeenCalledWith('observation-1', 'cancel')
     expect(diagnostics.observationAction).not.toHaveBeenCalledWith('observation-1', 'confirm')
   })
@@ -71,7 +74,7 @@ describe('usePluginOptimizationAction', () => {
   it('reports a disabled plugin separately from a failed observation confirmation', async () => {
     vi.mocked(pluginManagement.disablePlugin).mockResolvedValue(undefined)
     vi.mocked(diagnostics.observationAction).mockRejectedValue(new Error('timeout'))
-    await usePluginOptimizationAction(vi.fn()).disablePlugin('search', '搜索')
+    await usePluginOptimizationAction(vi.fn<() => Promise<void>>()).disablePlugin('search', '搜索')
     expect(Toast.warning).toHaveBeenCalled()
     expect(diagnostics.observationAction).not.toHaveBeenCalledWith('observation-1', 'cancel')
   })

@@ -17,6 +17,11 @@ final class AlertIncidentTransitions {
         long breachedAtMs,
         long nowMs
     ) {
+        return open(rule, input, threshold, breachedAtMs, nowMs, null);
+    }
+
+    static AlertIncident open(AlertRule rule, AlertEvaluationInput input, double threshold, long breachedAtMs, long nowMs,
+        AlertSceneSnapshot scene) {
         double value = rule.currentValue(input);
         return new AlertIncident(
             UUID.randomUUID().toString(),
@@ -32,7 +37,7 @@ final class AlertIncidentTransitions {
             1,
             value,
             threshold,
-            AlertIncidentDetailsEncoder.encode(rule, input, threshold)
+            AlertIncidentDetailsEncoder.encode(rule, input, threshold, scene)
         );
     }
 
@@ -58,7 +63,7 @@ final class AlertIncidentTransitions {
             increment(incident.occurrenceCount()),
             value,
             threshold,
-            AlertIncidentDetailsEncoder.encode(rule, input, threshold)
+            AlertIncidentDetailsEncoder.preservingScene(rule, input, threshold, incident.detailsJson())
         );
     }
 
@@ -72,7 +77,7 @@ final class AlertIncidentTransitions {
         double value = rule.currentValue(input);
         String details = rule == AlertRule.DEPENDENCY_FAILURE
             ? incident.detailsJson()
-            : AlertIncidentDetailsEncoder.encode(rule, input, threshold);
+            : AlertIncidentDetailsEncoder.preservingScene(rule, input, threshold, incident.detailsJson());
         return new AlertIncident(
             incident.id(),
             incident.ruleId(),

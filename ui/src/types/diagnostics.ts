@@ -94,16 +94,58 @@ export interface ThreadSnapshot {
   }[]
 }
 export interface LogResult {
+  snapshotId: string
+  capturedAtMs: number
   available: boolean
   sources: string[]
-  entries: { level: string; text: string }[]
+  entries: {
+    level: string
+    text: string
+    loggerName?: string | null
+    pluginIds: string[]
+    attribution: 'logger' | 'stack' | 'logger-and-stack' | 'unknown'
+  }[]
   exceptions: { signature: string; count: number }[]
   truncated: boolean
   page: number
   pageSize: number
   totalEntries: number
   hasNext: boolean
+  plugins: { pluginId: string; displayName: string; indexed: boolean }[]
+  pluginId: string
+  unattributedEntries: number
   message: string
+}
+
+export interface OverheadSnapshot {
+  fromMs: number
+  toMs: number
+  cpuCorePercent: number
+  allocatedBytesPerMinute: number
+  cpuAvailable: boolean
+  allocationAvailable: boolean
+  databaseReads: number
+  databaseWrites: number
+  operations: {
+    id: string
+    label: string
+    calls: number
+    failures: number
+    averageMs: number
+    maximumMs: number
+    cpuTimeMs: number
+    allocatedBytes: number
+    cpuSamples: number
+    allocationSamples: number
+  }[]
+  points: {
+    atMs: number
+    cpuTimeMs: number
+    allocatedBytes: number
+    databaseReads: number
+    databaseWrites: number
+  }[]
+  coverage: string
 }
 export interface JfrSession {
   id: string
@@ -122,4 +164,65 @@ export interface JfrSession {
 export interface Recordings {
   available: boolean
   sessions: JfrSession[]
+}
+import type { PluginRuntimeInfo, PluginConsumerItem, RequestRouteItem, TimeRange } from './insight'
+
+export interface PluginDiagnosticDetail {
+  plugin: PluginRuntimeInfo
+  range: TimeRange
+  fromMs: number
+  toMs: number
+  available: boolean
+  pressure?: PluginConsumerItem | null
+  timeline: PluginDiagnosticPoint[]
+  routes: RequestRouteItem[]
+  events: { atMs: number; type: string; title: string; summary: string }[]
+  observations: Observation[]
+  coverage: string
+}
+export interface PluginDiagnosticPoint {
+  atMs: number
+  intervalMs: number
+  cpuTimeMs: number
+  allocatedBytes: number
+  maximumThreads: number
+  resourceMinutes: number
+  cpuSamples: number
+  allocationSamples: number
+  samples: number
+  cpuObservedMinutes: number
+  allocationObservedMinutes: number
+  requests: number
+  errors: number
+  requestDurationMs: number
+  maximumRequestMs: number
+  requestMinutes: number
+}
+
+export interface PluginBaselineSummary {
+  fromMs: number
+  toMs: number
+  observedMinutes: number
+  expectedMinutes: number
+  coveragePercent: number
+  samples: number
+  sufficient: boolean
+  cpuCorePercent: number | null
+  allocatedBytesPerMinute: number | null
+  requests: number
+  errorRatePercent: number | null
+  averageRequestMs: number | null
+  maximumThreads: number
+  cpuSamples: number
+  allocationSamples: number
+  cpuObservedMinutes: number
+  allocationObservedMinutes: number
+}
+export interface PluginBaselineComparison {
+  available: boolean
+  reference: string
+  before: PluginBaselineSummary | null
+  after: PluginBaselineSummary | null
+  samplingComparable: boolean
+  notices: string[]
 }

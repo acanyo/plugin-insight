@@ -46,6 +46,7 @@ import '@/styles/insight.css'
 
 const activeTab = ref<DashboardTab>('overview')
 const range = ref<TimeRange>('1h')
+const optimizationVisible = ref(false)
 
 const {
   overview,
@@ -82,7 +83,7 @@ const {
   applyOptimization,
   rollbackOptimization,
   disablePlugin,
-} = useInsightDashboard(activeTab, range)
+} = useInsightDashboard(activeTab, range, optimizationVisible)
 
 const overviewData = overview.data
 const overviewLoading = overview.loading
@@ -108,7 +109,6 @@ const eventsError = events.error
 const optimizationData = optimization.data
 const optimizationLoading = optimization.loading
 const optimizationError = optimization.error
-const optimizationVisible = ref(false)
 
 const activeAlertSummary = computed(() => summarizeAlerts(overviewData.value?.activeAlerts ?? []))
 const collectorSignal = computed(() => resolveCollectorSignal(overviewData.value))
@@ -345,7 +345,6 @@ function selectTab(tab: DashboardTab) {
 
 function openPerformanceDiagnosis() {
   optimizationVisible.value = true
-  void refresh(true)
 }
 
 function confirmDisablePlugin(consumer: PluginConsumerItem) {
@@ -472,6 +471,7 @@ function confirmClearMonitoringData() {
 
       <PerformancePanel
         v-else-if="activeTab === 'performance'"
+        :range="range"
         :plugins="pluginsData"
         :consumers="consumersData"
         :routes="routesData"

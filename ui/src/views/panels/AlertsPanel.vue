@@ -11,6 +11,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue'
 import { INSIGHT_MANAGE_PERMISSION } from '@/constants/permissions'
 import type { AlertIncident, AlertStatus, SelectOption } from '@/types/insight'
 import { dependencyAlertDetails, dependencyProviderLabel } from '@/utils/alertDetails'
+import AlertSceneDetails from '@/components/alerts/AlertSceneDetails.vue'
 import { summarizeAlerts } from '@/utils/alertStatus'
 import { formatDateTime, formatRelativeTime, severityTone } from '@/utils/format'
 
@@ -150,6 +151,7 @@ function statusLabel(status: string): string {
                   >×{{ alert.occurrenceCount }}</span
                 >
               </div>
+              <AlertSceneDetails :alert="alert" />
             </div>
             <div class="alert-row__measure">
               <template v-if="alert.lastValue != null">

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { utils } from '@halo-dev/ui-shared'
 import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import MemoryDiagnostics from '@/components/diagnostics/MemoryDiagnostics.vue'
+import InsightOverheadPanel from '@/components/diagnostics/InsightOverheadPanel.vue'
 import ObservationHistory from '@/components/diagnostics/ObservationHistory.vue'
 import BusinessTasks from '@/components/diagnostics/BusinessTasks.vue'
 import DeliveryHistory from '@/components/diagnostics/DeliveryHistory.vue'
@@ -16,6 +17,7 @@ const canManage = computed(() => utils.permission.has(['plugin:insight:manage'])
 const canDiagnose = computed(() => utils.permission.has(['plugin:insight:diagnose']))
 const options = computed(() => [
   { label: '内存与 GC', value: 'memory' },
+  { label: '自身开销', value: 'overhead' },
   { label: '优化效果', value: 'observations' },
   { label: '业务任务', value: 'tasks' },
   ...(canManage.value ? [{ label: '通知投递', value: 'deliveries' }] : []),
@@ -33,6 +35,7 @@ const options = computed(() => [
   <div class="diagnostics-panel">
     <SegmentedControl v-model="selected" :options="options" control-label="诊断分类" />
     <MemoryDiagnostics v-if="selected === 'memory'" />
+    <InsightOverheadPanel v-else-if="selected === 'overhead'" />
     <ObservationHistory v-else-if="selected === 'observations'" />
     <BusinessTasks v-else-if="selected === 'tasks'" />
     <DeliveryHistory v-else-if="selected === 'deliveries' && canManage" />

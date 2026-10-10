@@ -13,6 +13,8 @@ vi.mock('@halo-dev/components', () => ({
   VLoading: { template: '<span />' },
 }))
 
+vi.mock('@halo-dev/ui-shared', () => ({ utils: { permission: { has: () => false } } }))
+
 describe('PerformancePanel route ranking', () => {
   it('uses slow routes by default and updates the ranking copy after a selection', async () => {
     const wrapper = mount(PerformancePanel, {

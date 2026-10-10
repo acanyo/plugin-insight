@@ -8,6 +8,7 @@ import SegmentedControl from '@/components/common/SegmentedControl.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
 import RouteSortControl from '@/components/performance/RouteSortControl.vue'
 import SustainedConsumersSection from '@/components/performance/SustainedConsumersSection.vue'
+import PluginDetailModal from '@/components/plugins/PluginDetailModal.vue'
 import { REQUEST_HEALTH_THRESHOLDS } from '@/constants/monitoring'
 import { ROUTE_RANKING_PRESENTATION, type RouteSortColumn } from '@/constants/routeRanking'
 import type {
@@ -18,10 +19,12 @@ import type {
   RequestRouteItem,
   RequestRouteSort,
   SelectOption,
+  TimeRange,
 } from '@/types/insight'
 import { formatBytes, formatCompactNumber, formatLatency, formatPercent } from '@/utils/format'
 
 const props = defineProps<{
+  range?: TimeRange
   plugins?: PluginRankingItem[]
   consumers?: PluginConsumerItem[]
   routes?: RequestRouteItem[]
@@ -34,6 +37,8 @@ const props = defineProps<{
   consumersError?: string
   routesError?: string
 }>()
+
+const selectedPluginId = ref<string>()
 
 const emit = defineEmits<{
   retry: []
@@ -149,6 +154,7 @@ function routeTone(route: RequestRouteItem): HealthStatus {
       :loading="consumersLoading ?? false"
       :error="consumersError"
       @retry="emit('retry')"
+      @select-plugin="selectedPluginId = $event"
     />
 
     <section class="insight-section">
@@ -213,7 +219,9 @@ function routeTone(route: RequestRouteItem): HealthStatus {
                 <td class="rank-column insight-mono">{{ String(index + 1).padStart(2, '0') }}</td>
                 <td>
                   <div class="plugin-name">
-                    <strong>{{ plugin.displayName || plugin.pluginId }}</strong>
+                    <button class="plugin-detail-link" @click="selectedPluginId = plugin.pluginId">
+                      {{ plugin.displayName || plugin.pluginId }}
+                    </button>
                     <span class="insight-mono">{{ plugin.pluginId }}</span>
                   </div>
                 </td>
@@ -418,10 +426,23 @@ function routeTone(route: RequestRouteItem): HealthStatus {
         </div>
       </SectionState>
     </section>
+    <PluginDetailModal
+      v-if="selectedPluginId"
+      :key="selectedPluginId"
+      :plugin-id="selectedPluginId"
+      :range="range ?? '1h'"
+      @close="selectedPluginId = undefined"
+    />
   </div>
 </template>
 
 <style scoped>
+.plugin-detail-link {
+  color: var(--insight-primary);
+  text-align: left;
+  font-weight: 650;
+  font-size: 12px;
+}
 .performance-panel {
   display: flex;
   flex-direction: column;

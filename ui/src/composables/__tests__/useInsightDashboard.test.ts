@@ -92,22 +92,25 @@ function event(id: string, type = 'lifecycle'): MonitorEvent {
 function mountDashboard(tab: DashboardTab): {
   dashboard: ReturnType<typeof useInsightDashboard>
   range: Ref<TimeRange>
+  activeTab: Ref<DashboardTab>
+  optimizationVisible: Ref<boolean>
   wrapper: VueWrapper
 } {
   const activeTab = ref<DashboardTab>(tab)
   const range = ref<TimeRange>('1h')
+  const optimizationVisible = ref(false)
   let dashboard!: ReturnType<typeof useInsightDashboard>
 
   const wrapper = mount(
     defineComponent({
       setup() {
-        dashboard = useInsightDashboard(activeTab, range)
+        dashboard = useInsightDashboard(activeTab, range, optimizationVisible)
         return () => h('div')
       },
     }),
   )
 
-  return { dashboard, range, wrapper }
+  return { dashboard, range, activeTab, optimizationVisible, wrapper }
 }
 
 beforeEach(() => {
@@ -124,6 +127,51 @@ beforeEach(() => {
 })
 
 describe('useInsightDashboard request ordering', () => {
+  it('loads only overview and trends while other panels are hidden', async () => {
+    const { wrapper } = mountDashboard('overview')
+    await flushPromises()
+    expect(insightApi.fetchOverview).toHaveBeenCalledTimes(1)
+    expect(insightApi.fetchTrends).toHaveBeenCalledTimes(1)
+    expect(insightApi.fetchOptimization).not.toHaveBeenCalled()
+    expect(insightApi.fetchAlertHistory).not.toHaveBeenCalled()
+    expect(insightApi.fetchPlugins).not.toHaveBeenCalled()
+    expect(insightApi.fetchEvents).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('refreshes optimization only while the dialog is visible', async () => {
+    const { dashboard, optimizationVisible, wrapper } = mountDashboard('overview')
+    await flushPromises()
+    optimizationVisible.value = true
+    await nextTick()
+    await flushPromises()
+    expect(insightApi.fetchOptimization).toHaveBeenCalledTimes(1)
+    await dashboard.refresh(true)
+    expect(insightApi.fetchOptimization).toHaveBeenCalledTimes(2)
+    optimizationVisible.value = false
+    await nextTick()
+    await dashboard.refresh(true)
+    expect(insightApi.fetchOptimization).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('loads alert history on entering alerts and stops refreshing it on leaving', async () => {
+    const { dashboard, activeTab, wrapper } = mountDashboard('overview')
+    await flushPromises()
+    activeTab.value = 'alerts'
+    await nextTick()
+    await flushPromises()
+    expect(insightApi.fetchAlertHistory).toHaveBeenCalledTimes(1)
+    expect(insightApi.fetchTrends).toHaveBeenCalledTimes(1)
+    activeTab.value = 'diagnostics'
+    await nextTick()
+    await flushPromises()
+    await dashboard.refresh(true)
+    expect(insightApi.fetchAlertHistory).toHaveBeenCalledTimes(1)
+    expect(insightApi.fetchTrends).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
   it('refreshes historical resources with the newly selected time range', async () => {
     const { range, wrapper } = mountDashboard('overview')
     await flushPromises()

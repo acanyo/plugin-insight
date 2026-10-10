@@ -8,7 +8,9 @@ const headers = { Authorization: 'Basic ' + Buffer.from(
   `${process.env.HALO_TEST_USER || 'admin'}:${process.env.HALO_TEST_PASSWORD}`).toString('base64') };
 const started = Date.now();
 const paths = ['overview', 'alerts/history?status=open&limit=10', 'diagnostics',
-  'business-task-history', 'observations', 'deliveries', 'recordings', 'trends?range=15m'];
+  'business-task-history', 'observations', 'deliveries', 'recordings', 'trends?range=15m',
+  'monitor-overhead', 'plugin-detail?pluginId=insight&range=15m',
+  'plugin-baseline?pluginId=insight&range=15m&reference=previous'];
 let checks = 0, failures = 0, reported = 0;
 do {
   await Promise.all(paths.map(async path => {

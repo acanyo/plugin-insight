@@ -49,6 +49,9 @@ try {
       ['GET', 'diagnostics', viewer ? 200 : 403],
       ['GET', 'business-tasks', viewer ? 200 : 403],
       ['GET', 'observations', viewer ? 200 : 403],
+      ['GET', 'monitor-overhead', viewer ? 200 : 403],
+      ['GET', 'plugin-detail?pluginId=insight&range=15m', viewer ? 200 : 403],
+      ['GET', 'plugin-baseline?pluginId=insight&range=15m&reference=previous', viewer ? 200 : 403],
       ['GET', 'deliveries', manager ? 200 : 403],
       ['GET', 'diagnostic-logs?keyword=insight-regression-no-match', diagnose ? 200 : 403],
       ['GET', 'diagnostic-threads', diagnose ? 200 : 403],
@@ -65,7 +68,8 @@ try {
     console.log(JSON.stringify({ profile, cases: cases.length,
       failures: results.filter(r => r.profile === profile && !r.passed) }));
   }
-  for (const path of ['diagnostics', 'diagnostic-logs', 'diagnostic-threads', 'recordings', 'deliveries']) {
+  for (const path of ['diagnostics', 'monitor-overhead', 'plugin-detail?pluginId=insight',
+    'plugin-baseline?pluginId=insight', 'diagnostic-logs', 'diagnostic-threads', 'recordings', 'deliveries']) {
     const actual = await request(group + path);
     results.push({ profile: 'anonymous', path, actual, passed: [302, 401, 403].includes(actual) });
   }

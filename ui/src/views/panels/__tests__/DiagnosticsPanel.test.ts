@@ -8,8 +8,11 @@ vi.mock('@halo-dev/components', () => ({
   VButton: { template: '<button><slot /></button>' },
   VAlert: { template: '<div><slot /></div>' },
   VLoading: { template: '<span />' },
-  Toast: { success: vi.fn(), error: vi.fn() },
-  Dialog: { warning: vi.fn() },
+  Toast: {
+    success: vi.fn<(...args: unknown[]) => void>(),
+    error: vi.fn<(...args: unknown[]) => void>(),
+  },
+  Dialog: { warning: vi.fn<(...args: unknown[]) => void>() },
 }))
 vi.mock('@halo-dev/ui-shared', () => ({
   utils: {
@@ -25,6 +28,7 @@ describe('DiagnosticsPanel permissions', () => {
     const control = wrapper.findComponent(SegmentedControl)
     expect(control.props('options').map((option: { value: string }) => option.value)).toEqual([
       'memory',
+      'overhead',
       'observations',
       'tasks',
       'external',

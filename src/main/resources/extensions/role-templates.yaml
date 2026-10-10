@@ -11,7 +11,7 @@ metadata:
       ["plugin:insight:view"]
 rules:
   - apiGroups: ["console.api.insight.halo.run"]
-    resources: ["overview", "trends", "plugins", "consumers", "routes", "events", "alerts", "optimization", "diagnostics", "observations", "business-tasks", "business-task-history"]
+    resources: ["overview", "trends", "plugins", "consumers", "routes", "events", "alerts", "optimization", "diagnostics", "observations", "business-tasks", "business-task-history", "monitor-overhead", "plugin-detail", "plugin-baseline"]
     verbs: ["list"]
   # /alerts/history is parsed as resource=alerts, name=history, verb=get.
   - apiGroups: ["console.api.insight.halo.run"]

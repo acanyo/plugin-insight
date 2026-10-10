@@ -214,6 +214,7 @@ export type ConsumerPressureLevel = 'none' | 'low' | 'medium' | 'high'
 export type ConsumerResource = 'cpu' | 'memory-allocation' | 'request-time' | 'threads'
 
 export interface PluginConsumerItem {
+  breakdown?: PressureScoreBreakdown
   pluginId: string
   displayName: string
   enabled: boolean
@@ -232,6 +233,24 @@ export interface PluginConsumerItem {
   requestLoadSharePercent: number
   allocatedBytesPerMinute: number
   attributedThreadsMax: number
+}
+
+export interface PressureScoreBreakdown {
+  cpuCorePercent: number
+  requestBusyPercent: number
+  cpuActiveMinutes: number
+  threadPresentMinutes: number
+  resourceMinutes: number
+  formula: string
+  components: {
+    id: string
+    label: string
+    dimensionScore: number
+    contribution: number
+    sharePercent: number
+    persistenceRatio: number
+    intensity: number
+  }[]
 }
 
 export interface OptimizationChange {

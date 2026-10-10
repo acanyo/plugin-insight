@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import SectionHeading from '@/components/common/SectionHeading.vue'
 import SectionState from '@/components/common/SectionState.vue'
 import StatusBadge from '@/components/common/StatusBadge.vue'
+import PressureScoreDetails from './PressureScoreDetails.vue'
 import type { ConsumerPressureLevel, HealthStatus, PluginConsumerItem } from '@/types/insight'
 import { formatBytes, formatPercent } from '@/utils/format'
 
@@ -13,7 +14,7 @@ const props = defineProps<{
   error?: string
 }>()
 
-const emit = defineEmits<{ retry: [] }>()
+const emit = defineEmits<{ retry: []; selectPlugin: [pluginId: string] }>()
 
 const visibleConsumers = computed(() => props.consumers?.slice(0, 5) ?? [])
 
@@ -61,7 +62,9 @@ function consumerTone(level: ConsumerPressureLevel): HealthStatus {
         >
           <span class="consumer-rank insight-mono">{{ index + 1 }}</span>
           <div class="consumer-identity">
-            <strong>{{ consumer.displayName || consumer.pluginId }}</strong>
+            <button class="consumer-link" @click="emit('selectPlugin', consumer.pluginId)">
+              {{ consumer.displayName || consumer.pluginId }}
+            </button>
             <span class="insight-mono">{{ consumer.pluginId }}</span>
           </div>
           <div class="consumer-signal">
@@ -96,15 +99,17 @@ function consumerTone(level: ConsumerPressureLevel): HealthStatus {
               >{{ formatBytes(consumer.allocatedBytesPerMinute) }}/min</strong
             >
             <span>
-              CPU {{ formatPercent(consumer.cpuSharePercent) }} · 请求
+              CPU 份额 {{ formatPercent(consumer.cpuSharePercent) }} · 请求份额
               {{ formatPercent(consumer.requestLoadSharePercent) }}
             </span>
           </div>
+          <PressureScoreDetails class="consumer-score-details" :consumer="consumer" />
         </div>
       </div>
     </SectionState>
     <p class="consumer-note">
-      内存指标表示区间分配速率，不等于插件当前驻留堆，也不能单独作为内存泄漏结论。
+      CPU 份额表示插件占采样总 CPU
+      耗时的比例；内存指标表示区间分配速率，不等于插件当前驻留堆，也不能单独作为内存泄漏结论。
     </p>
   </section>
 </template>
@@ -119,10 +124,9 @@ function consumerTone(level: ConsumerPressureLevel): HealthStatus {
   display: grid;
   min-height: 70px;
   align-items: center;
-  grid-template-columns: 32px minmax(180px, 1.3fr) minmax(150px, 1fr) repeat(
-      3,
-      minmax(92px, 0.7fr)
-    ) minmax(170px, 1fr);
+  grid-template-columns:
+    32px minmax(180px, 1.3fr) minmax(150px, 1fr) repeat(3, minmax(92px, 0.7fr))
+    minmax(170px, 1fr);
   gap: 14px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--insight-border);
@@ -136,6 +140,17 @@ function consumerTone(level: ConsumerPressureLevel): HealthStatus {
   color: var(--insight-subtle);
   font-size: 12px;
   text-align: center;
+}
+
+.consumer-link {
+  text-align: left;
+  color: var(--insight-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.consumer-score-details {
+  grid-column: 2 / -1;
 }
 
 .consumer-identity,

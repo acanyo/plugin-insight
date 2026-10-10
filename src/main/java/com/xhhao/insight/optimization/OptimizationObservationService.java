@@ -4,7 +4,9 @@ import com.xhhao.insight.diagnostics.DiagnosticRecords;
 import com.xhhao.insight.diagnostics.DiagnosticConflictException;
 import com.xhhao.insight.event.EventRecorder;
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
 import run.halo.app.core.extension.Plugin;
@@ -18,6 +20,7 @@ public class OptimizationObservationService {
     private final ObservationMetrics metrics;
     private final ReactiveExtensionClient plugins;
     private final EventRecorder events;
+    private Map<String, Observation> activeObservations;
 
     public OptimizationObservationService(DiagnosticRecords records, ObservationMetrics metrics,
         ReactiveExtensionClient plugins, EventRecorder events) {
@@ -28,7 +31,7 @@ public class OptimizationObservationService {
         if (pluginId == null || !pluginId.matches("[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}") || "insight".equals(pluginId)) {
             throw new IllegalArgumentException("请选择其他已启用插件");
         }
-        if (list().stream().anyMatch(Observation::active)) { throw new DiagnosticConflictException("已有优化观察进行中，请先等待其结束"); }
+        if (!activeObservations().isEmpty()) { throw new DiagnosticConflictException("已有优化观察进行中，请先等待其结束"); }
         var plugin = plugin(pluginId);
         if (!Boolean.TRUE.equals(plugin.getSpec().getEnabled())) { throw new DiagnosticConflictException("插件已经停用"); }
         long now = System.currentTimeMillis(); long end = now / 60_000 * 60_000;
@@ -70,8 +73,7 @@ public class OptimizationObservationService {
     }
 
     public synchronized void tick(long now) {
-        for (var value : list()) {
-            if (!value.active()) { continue; }
+        for (var value : List.copyOf(activeObservations().values())) {
             if ("prepared".equals(value.state())) {
                 if (now - value.createdAtMs() > 120_000) { save(value.finish("cancelled", null, "未在两分钟内确认停用，已取消观察")); }
                 continue;
@@ -91,13 +93,34 @@ public class OptimizationObservationService {
     }
 
     public synchronized void interruptPending() {
-        for (var value : list()) {
-            if (value.active()) { save(value.finish("interrupted", null, "Insight 或 Halo 重启，观察中断，可重新发起")); }
+        // Reload once per lifecycle so persisted work is recovered after a restart.
+        activeObservations = null;
+        for (var value : List.copyOf(activeObservations().values())) {
+            save(value.finish("interrupted", null, "Insight 或 Halo 重启，观察中断，可重新发起"));
         }
     }
 
+    /** Called under the observation lock after its durable history has been cleared. */
+    public synchronized void historyCleared() {
+        activeObservations = new LinkedHashMap<>();
+    }
+
     public List<Observation> list() { return records.list(KIND, Observation.class, 100); }
+
+    private Map<String, Observation> activeObservations() {
+        if (activeObservations == null) {
+            Map<String, Observation> loaded = new LinkedHashMap<>();
+            for (var value : list()) {
+                if (value.active()) { loaded.put(value.id(), value); }
+            }
+            activeObservations = loaded;
+        }
+        return activeObservations;
+    }
+
     private Observation find(String id) {
+        var active = activeObservations().get(id);
+        if (active != null) { return active; }
         return list().stream().filter(value -> value.id().equals(id)).findFirst()
             .orElseThrow(() -> new IllegalArgumentException("观察记录不存在"));
     }
@@ -106,7 +129,12 @@ public class OptimizationObservationService {
         if (plugin == null || plugin.getSpec() == null) { throw new IllegalArgumentException("插件不存在"); }
         return plugin;
     }
-    private void save(Observation value) { records.save(KIND, value.id(), System.currentTimeMillis(), value); }
+    private void save(Observation value) {
+        records.save(KIND, value.id(), System.currentTimeMillis(), value);
+        // Publish only after durable storage succeeds; failed writes are retried next tick.
+        if (value.active()) { activeObservations().put(value.id(), value); }
+        else { activeObservations().remove(value.id()); }
+    }
 
     public record Observation(String id, String pluginId, String displayName, String state,
         long createdAtMs, long fromMs, long toMs, ObservationMetrics.Summary before,
