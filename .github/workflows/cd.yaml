@@ -16,3 +16,5 @@ jobs:
       node-version: 24
       java-version: 21
       app-id: app-bm4ppebf
+    secrets:
+      halo-pat: ${{ secrets.HALO_PAT }}

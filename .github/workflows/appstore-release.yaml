@@ -1,0 +1,57 @@
+name: App Store Republish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag to publish to Halo App Store
+        required: true
+        default: v1.2.0
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appstore-republish-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  appstore-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check App Store credential
+        env:
+          HALO_PAT: ${{ secrets.HALO_PAT }}
+        run: |
+          if [[ -z "$HALO_PAT" ]]; then
+            echo "::error::Configure the HALO_PAT repository secret with Halo App Store release-management permission, then rerun this workflow."
+            exit 1
+          fi
+
+      - name: Download and verify existing release package
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Expected a version tag such as v1.2.0."
+            exit 1
+          fi
+          release_json=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG")
+          release_id=$(jq -er 'select(.draft == false) | .id' <<< "$release_json")
+          package_name="plugin-insight-${RELEASE_TAG#v}.jar"
+          package_digest=$(jq -er --arg name "$package_name" '.assets[] | select(.name == $name) | .digest | select(startswith("sha256:"))' <<< "$release_json")
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$package_name" --dir build/libs
+          printf '%s  %s\n' "${package_digest#sha256:}" "build/libs/$package_name" | sha256sum --check
+          echo "id=$release_id" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to Halo App Store
+        uses: halo-sigs/app-store-release-action@v4
+        with:
+          github-token: ${{ github.token }}
+          app-id: app-bm4ppebf
+          release-id: ${{ steps.release.outputs.id }}
+          assets-dir: build/libs
+          halo-pat: ${{ secrets.HALO_PAT }}

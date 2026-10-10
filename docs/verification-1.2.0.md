@@ -20,7 +20,8 @@
 SQLite 沿用 v5，本次不增加迁移。安装包为 `build/libs/plugin-insight-1.2.0.jar`。
 
 已保留远端主分支的实时插件指标、Issue 反馈、Halo 通知、界面调整和仓库元数据。
-GitHub 发布工作流仅发布到 Releases，应用商店发布作为独立操作。
+GitHub 发布工作流同时发布到 Releases 和 Halo 应用市场；已有 GitHub 版本可通过手动流程补发到市场。
+发布凭据和操作入口见 [发布说明](releasing.md)。
 
 ## 已完成的验证
 
