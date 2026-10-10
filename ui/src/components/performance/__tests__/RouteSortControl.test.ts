@@ -9,7 +9,7 @@ describe('RouteSortControl', () => {
       props: { modelValue: 'slow' },
     })
 
-    expect(wrapper.findAll('button').map((button) => button.text())).toEqual([
+    expect(wrapper.findAll('option').map((option) => option.text())).toEqual([
       '慢接口',
       'P95',
       'P99',
@@ -20,10 +20,7 @@ describe('RouteSortControl', () => {
       '错误率',
     ])
 
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === '错误率')
-      ?.trigger('click')
+    await wrapper.find('select').setValue('error-rate')
 
     expect(wrapper.emitted('update:modelValue')).toEqual([['error-rate']])
   })

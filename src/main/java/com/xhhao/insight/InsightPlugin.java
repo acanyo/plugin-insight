@@ -77,7 +77,7 @@ public class InsightPlugin extends BasePlugin {
         pluginEventWatcher.start();
         configMapEventWatcher.start();
         coordinator.start();
-        events.record("lifecycle", "info", "insight", "Insight 监控组件已初始化",
+        events.record("lifecycle", "info", "insight", "运行洞察监控组件已初始化",
             storageAvailable ? "监控采集与 SQLite 历史存储均已启用"
                 : "SQLite 不可用，监控已切换为仅实时模式");
         log.info("Halo Insight started; SQLite available={}", storageAvailable);
@@ -91,8 +91,8 @@ public class InsightPlugin extends BasePlugin {
         configMapEventWatcher.dispose();
         pluginEventWatcher.dispose();
         haloLifecycleObserver.stop();
-        events.record("lifecycle", "info", "insight", "Insight 监控组件已停止",
-            "Insight 自身的监控采集已停止；此事件不代表 Halo 应用关闭");
+        events.record("lifecycle", "info", "insight", "运行洞察监控组件已停止",
+            "运行洞察自身的监控采集已停止；此事件不代表 Halo 应用关闭");
         storage.close();
         log.info("Halo Insight stopped");
     }

@@ -12,7 +12,8 @@ export default definePlugin({
       route: {
         path: '/insight',
         name: 'Insight',
-        component: () => import(/* webpackChunkName: "HomeView" */ './views/HomeView.vue'),
+        component: () =>
+          import(/* webpackChunkName: "InsightDashboardView" */ './views/InsightDashboardView.vue'),
         meta: {
           title: '运行洞察',
           searchable: true,

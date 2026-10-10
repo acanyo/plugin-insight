@@ -84,9 +84,10 @@ application-local.properties
 /workplace/
 /src/main/resources/ui/
 /.playwright-cli/
+/output/
 
-### External monitor local state
-/external-monitor/.env
-__pycache__/
-*.pyc
-/external-monitor/*.sqlite*
+# Local browser diagnostics
+/.playwright-mcp/
+
+# Local state left by the removed standalone monitor
+/external-monitor/

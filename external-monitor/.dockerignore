@@ -1,5 +1,0 @@
-.env
-*.sqlite*
-__pycache__
-*.pyc
-.git

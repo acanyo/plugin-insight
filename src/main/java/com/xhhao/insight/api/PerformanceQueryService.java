@@ -71,10 +71,7 @@ public class PerformanceQueryService {
 
     public List<PluginRankingItem> plugins(String rangeName, String sortName) {
         ApiTimeRange range = range(rangeName);
-        if (!storage.health().available()) {
-            return List.of();
-        }
-        return pluginRanking.find(range, sortName);
+        return pluginRanking.find(range, sortName, storage.health().available());
     }
 
     public List<PluginConsumerItem> consumers(String rangeName) {

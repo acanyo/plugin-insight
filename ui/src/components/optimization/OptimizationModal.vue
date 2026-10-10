@@ -7,6 +7,7 @@ import InsightOverheadControl from '@/components/optimization/InsightOverheadCon
 import PluginOptimizationCard from '@/components/optimization/PluginOptimizationCard.vue'
 import RuntimeDiagnosisSummary from '@/components/optimization/RuntimeDiagnosisSummary.vue'
 import type { OptimizationStatus, PluginConsumerItem } from '@/types/insight'
+import type { IssueEnvironment } from '@/utils/pluginIssue'
 
 defineProps<{
   status?: OptimizationStatus
@@ -15,6 +16,7 @@ defineProps<{
   applying: boolean
   rollingBack: boolean
   disablingPluginId?: string
+  environment?: IssueEnvironment
 }>()
 
 const emit = defineEmits<{
@@ -43,6 +45,7 @@ const emit = defineEmits<{
           :consumer="status.topConsumer"
           :resource-sampling-enabled="status.pluginResourceSamplingEnabled"
           :disabling="disablingPluginId === status.topConsumer?.pluginId"
+          :environment="environment"
           @disable="emit('disablePlugin', $event)"
         />
 

@@ -456,70 +456,76 @@ function confirmClearMonitoringData() {
         </div>
       </div>
 
-      <OverviewPanel
-        v-if="activeTab === 'overview'"
-        :overview="overviewData"
-        :trends="trendsData"
-        :loading="overviewLoading"
-        :error="overviewError"
-        :trends-loading="trendsLoading"
-        :trends-error="trendsError"
-        :clearing-data="clearingData"
-        @retry="refresh()"
-        @clear-monitoring-data="confirmClearMonitoringData"
-      />
+      <Transition name="insight-panel" mode="out-in">
+        <div :key="activeTab" class="insight-panel-stage">
+          <OverviewPanel
+            v-if="activeTab === 'overview'"
+            :overview="overviewData"
+            :trends="trendsData"
+            :loading="overviewLoading"
+            :error="overviewError"
+            :trends-loading="trendsLoading"
+            :trends-error="trendsError"
+            :clearing-data="clearingData"
+            @retry="refresh()"
+            @clear-monitoring-data="confirmClearMonitoringData"
+          />
 
-      <PerformancePanel
-        v-else-if="activeTab === 'performance'"
-        :range="range"
-        :plugins="pluginsData"
-        :consumers="consumersData"
-        :routes="routesData"
-        :plugin-sort="pluginSort"
-        :route-sort="routeSort"
-        :plugins-loading="pluginsLoading"
-        :consumers-loading="consumersLoading"
-        :routes-loading="routesLoading"
-        :plugins-error="pluginsError"
-        :consumers-error="consumersError"
-        :routes-error="routesError"
-        @retry="refresh()"
-        @update:plugin-sort="pluginSort = $event"
-        @update:route-sort="routeSort = $event"
-      />
+          <PerformancePanel
+            v-else-if="activeTab === 'performance'"
+            :range="range"
+            :plugins="pluginsData"
+            :consumers="consumersData"
+            :routes="routesData"
+            :plugin-sort="pluginSort"
+            :route-sort="routeSort"
+            :plugins-loading="pluginsLoading"
+            :consumers-loading="consumersLoading"
+            :routes-loading="routesLoading"
+            :plugins-error="pluginsError"
+            :consumers-error="consumersError"
+            :routes-error="routesError"
+            :environment="overviewData?.runtime"
+            :runtime-plugins="overviewData?.plugins"
+            @retry="refresh()"
+            @update:plugin-sort="pluginSort = $event"
+            @update:route-sort="routeSort = $event"
+          />
 
-      <AlertsPanel
-        v-else-if="activeTab === 'alerts'"
-        :alerts="alertsData"
-        :active-alerts="overviewData?.activeAlerts"
-        :status="alertStatus"
-        :loading="alertsLoading"
-        :error="alertsError"
-        :testing-notifications="testingNotifications"
-        :acknowledging-ids="acknowledgingAlertIds"
-        :loading-more="loadingMoreAlerts"
-        :has-more="hasMoreAlerts"
-        @retry="refresh()"
-        @test-notification="sendTestNotification"
-        @acknowledge="acknowledgeAlert"
-        @update:status="alertStatus = $event"
-        @load-more="loadMoreAlerts"
-      />
+          <AlertsPanel
+            v-else-if="activeTab === 'alerts'"
+            :alerts="alertsData"
+            :active-alerts="overviewData?.activeAlerts"
+            :status="alertStatus"
+            :loading="alertsLoading"
+            :error="alertsError"
+            :testing-notifications="testingNotifications"
+            :acknowledging-ids="acknowledgingAlertIds"
+            :loading-more="loadingMoreAlerts"
+            :has-more="hasMoreAlerts"
+            @retry="refresh()"
+            @test-notification="sendTestNotification"
+            @acknowledge="acknowledgeAlert"
+            @update:status="alertStatus = $event"
+            @load-more="loadMoreAlerts"
+          />
 
-      <EventsPanel
-        v-else-if="activeTab === 'events'"
-        :events="eventsData"
-        :loading="eventsLoading"
-        :loading-more="loadingMoreEvents"
-        :error="eventsError"
-        :event-type="eventFilters.type"
-        :severity="eventFilters.severity"
-        @retry="refresh()"
-        @load-more="loadMoreEvents"
-        @update:event-type="eventFilters.type = $event"
-        @update:severity="eventFilters.severity = $event"
-      />
-      <DiagnosticsPanel v-else-if="activeTab === 'diagnostics'" />
+          <EventsPanel
+            v-else-if="activeTab === 'events'"
+            :events="eventsData"
+            :loading="eventsLoading"
+            :loading-more="loadingMoreEvents"
+            :error="eventsError"
+            :event-type="eventFilters.type"
+            :severity="eventFilters.severity"
+            @retry="refresh()"
+            @load-more="loadMoreEvents"
+            @update:event-type="eventFilters.type = $event"
+            @update:severity="eventFilters.severity = $event"
+          />
+          <DiagnosticsPanel v-else-if="activeTab === 'diagnostics'" />
+        </div>
+      </Transition>
     </main>
 
     <OptimizationModal
@@ -530,6 +536,7 @@ function confirmClearMonitoringData() {
       :applying="applyingOptimization"
       :rolling-back="rollingBackOptimization"
       :disabling-plugin-id="disablingPluginId"
+      :environment="overviewData?.runtime"
       @close="optimizationVisible = false"
       @retry="refresh()"
       @apply="applyOptimization"
@@ -614,6 +621,9 @@ function confirmClearMonitoringData() {
   font-size: 12px;
   font-weight: 620;
   cursor: pointer;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease;
 }
 
 .monitor-tabs__item:hover {
@@ -634,6 +644,8 @@ function confirmClearMonitoringData() {
   height: 2px;
   background: var(--insight-primary);
   content: '';
+  transform-origin: center;
+  animation: insight-tab-indicator 180ms ease-out;
 }
 
 .monitor-tabs__item svg {
@@ -724,6 +736,53 @@ function confirmClearMonitoringData() {
 
   .range-control {
     width: 100%;
+  }
+}
+
+.insight-panel-enter-active,
+.insight-panel-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.insight-panel-stage {
+  min-width: 0;
+}
+
+.insight-panel-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.insight-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+@keyframes insight-tab-indicator {
+  from {
+    opacity: 0;
+    transform: scaleX(0.35);
+  }
+
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .insight-panel-enter-active,
+  .insight-panel-leave-active,
+  .monitor-tabs__item,
+  .metric-card,
+  .resource-meter__track i {
+    transition: none;
+  }
+
+  .monitor-tabs__item--active::after {
+    animation: none;
   }
 }
 </style>

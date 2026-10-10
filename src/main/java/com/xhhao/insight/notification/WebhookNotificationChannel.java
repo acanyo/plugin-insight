@@ -69,7 +69,7 @@ public class WebhookNotificationChannel implements NotificationChannel {
             "\"metric\":\"" + escape(value.metric()) + "\"," +
             "\"value\":" + value.value() + "," +
             "\"threshold\":" + value.threshold() + "," +
-            "\"occurredAt\":\"" + value.occurredAt() + "\"," +
+            "\"occurredAt\":\"" + NotificationTimeFormatter.format(value.occurredAt()) + "\"," +
             "\"recovered\":" + value.recovered() +
             "}";
     }

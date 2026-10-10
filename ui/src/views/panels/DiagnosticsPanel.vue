@@ -10,7 +10,6 @@ import DeliveryHistory from '@/components/diagnostics/DeliveryHistory.vue'
 import ThreadInspector from '@/components/diagnostics/ThreadInspector.vue'
 import LogInspector from '@/components/diagnostics/LogInspector.vue'
 import JfrInspector from '@/components/diagnostics/JfrInspector.vue'
-import ExternalMonitorHelp from '@/components/diagnostics/ExternalMonitorHelp.vue'
 import '@/styles/diagnostics.css'
 const selected = ref('memory')
 const canManage = computed(() => utils.permission.has(['plugin:insight:manage']))
@@ -28,7 +27,6 @@ const options = computed(() => [
         { label: 'JFR', value: 'jfr' },
       ]
     : []),
-  { label: '站外监测', value: 'external' },
 ])
 </script>
 <template>
@@ -42,6 +40,5 @@ const options = computed(() => [
     <ThreadInspector v-else-if="selected === 'threads' && canDiagnose" />
     <LogInspector v-else-if="selected === 'logs' && canDiagnose" />
     <JfrInspector v-else-if="selected === 'jfr' && canDiagnose" />
-    <ExternalMonitorHelp v-else-if="selected === 'external'" />
   </div>
 </template>

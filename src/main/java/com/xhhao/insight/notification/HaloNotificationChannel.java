@@ -51,13 +51,9 @@ public class HaloNotificationChannel implements NotificationChannel {
     @Override
     public synchronized NotificationResult send(AlertNotification notification) {
         var settings = settingsService.notifications();
-        if (!settings.isHaloNotificationEnabled()) {
-            return NotificationResult.skipped(name(), "Halo 站内通知未启用");
-        }
-
         List<String> recipients = normalizeRecipients(settings.getHaloNotificationRecipients());
         if (recipients.isEmpty()) {
-            return NotificationResult.skipped(name(), "未配置 Halo 站内通知接收人");
+            return NotificationResult.skipped(name(), "未配置 Halo 通知接收人");
         }
 
         await(Flux.fromIterable(recipients)
@@ -93,8 +89,7 @@ public class HaloNotificationChannel implements NotificationChannel {
                 .attribute("metric", safe(notification.metric()))
                 .attribute("value", notification.value())
                 .attribute("threshold", notification.threshold())
-                .attribute("occurredAt", notification.occurredAt() == null
-                    ? "" : notification.occurredAt().toString())
+                .attribute("occurredAt", NotificationTimeFormatter.format(notification.occurredAt()))
                 .attribute("recovered", notification.recovered())
                 .attribute("stateLabel", notification.recovered() ? "已恢复" : "告警中")
                 .attribute("consoleUrl", CONSOLE_URL)));
@@ -122,7 +117,7 @@ public class HaloNotificationChannel implements NotificationChannel {
     }
 
     private static String displayTitle(String value) {
-        return value == null || value.isBlank() ? "Halo Insight 运行洞察通知" : value;
+        return value == null || value.isBlank() ? "运行洞察通知" : value;
     }
 
     private static void await(Mono<Void> operation) {

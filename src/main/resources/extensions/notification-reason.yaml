@@ -3,15 +3,15 @@ kind: ReasonType
 metadata:
   name: insight-alert-state-changed
 spec:
-  displayName: Halo Insight 运行洞察告警
-  description: 当 Halo Insight 检测到运行指标告警、告警恢复或发送测试通知时触发
+  displayName: 运行洞察告警
+  description: 当运行洞察检测到运行指标告警、告警恢复或发送测试通知时触发
   properties:
     - name: incidentId
       type: string
-      description: Insight 告警事件 ID
+      description: 运行洞察告警事件 ID
     - name: targetUser
       type: string
-      description: 通知接收用户名
+      description: 通知接收用户
     - name: title
       type: string
       description: 通知标题
@@ -41,4 +41,4 @@ spec:
       description: 状态显示文本
     - name: consoleUrl
       type: string
-      description: Insight 控制台地址
+      description: 运行洞察控制台地址

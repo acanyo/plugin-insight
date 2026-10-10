@@ -20,6 +20,10 @@ public record PluginConsumerItem(
     double requestLoadSharePercent,
     double allocatedBytesPerMinute,
     int attributedThreadsMax,
+    String version,
+    String issuesUrl,
+    long fromMs,
+    long toMs,
     PressureScoreBreakdown breakdown
 ) {
 }

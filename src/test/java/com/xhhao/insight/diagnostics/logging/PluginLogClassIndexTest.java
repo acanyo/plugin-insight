@@ -47,9 +47,9 @@ class PluginLogClassIndexTest {
                         "2.26.0",
                         null,
                         List.of(
-                                new PluginRuntimeInfo("alpha", "甲插件", "1.0", true, "STARTED", null),
+                                new PluginRuntimeInfo("alpha", "甲插件", "1.0", null, true, "STARTED", null),
                                 new PluginRuntimeInfo(
-                                        "beta", "乙插件", "1.0", false, "STOPPED", null)),
+                                        "beta", "乙插件", "1.0", null, false, "STOPPED", null)),
                         List.of()));
 
         var snapshot = new PluginLogClassIndex(manager, state, () -> 0).snapshot();

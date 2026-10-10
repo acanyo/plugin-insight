@@ -106,7 +106,7 @@ public final class HaloApplicationLifecycleObserver {
             && closedEvent.getApplicationContext() == rootContext
             && closingRecorded.compareAndSet(false, true)) {
             events.record("lifecycle", "info", "halo", "Halo 应用上下文正在关闭",
-                "检测到 Halo 根 Spring 上下文关闭；这与单独停用 Insight 不同",
+                "检测到 Halo 根 Spring 上下文关闭；这与单独停用运行洞察不同",
                 EventDetailsEncoder.encode(new HaloLifecycleDetails(
                     1, "halo_application_lifecycle", "context_closed_event", null)));
         }
@@ -123,13 +123,13 @@ public final class HaloApplicationLifecycleObserver {
         if (readiness == ReadinessState.ACCEPTING_TRAFFIC) {
             title = observedAtStartup ? "Halo 应用就绪状态已确认" : "Halo 应用已接受流量";
             summary = observedAtStartup
-                ? "Insight 启动时确认 Halo 已处于可接收请求状态"
+                ? "运行洞察启动时确认 Halo 已处于可接收请求状态"
                 : "Halo 根 Spring 上下文报告可以接收请求";
             severity = "info";
         } else {
             title = "Halo 应用暂不接受流量";
             summary = observedAtStartup
-                ? "Insight 启动时观察到 Halo 尚未进入可接收请求状态"
+                ? "运行洞察启动时观察到 Halo 尚未进入可接收请求状态"
                 : "Halo 根 Spring 上下文报告暂不接收请求";
             severity = "warning";
         }

@@ -96,7 +96,7 @@ public class OptimizationObservationService {
         // Reload once per lifecycle so persisted work is recovered after a restart.
         activeObservations = null;
         for (var value : List.copyOf(activeObservations().values())) {
-            save(value.finish("interrupted", null, "Insight 或 Halo 重启，观察中断，可重新发起"));
+            save(value.finish("interrupted", null, "运行洞察或 Halo 重启，观察中断，可重新发起"));
         }
     }
 

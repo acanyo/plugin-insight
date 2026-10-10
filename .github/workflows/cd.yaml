@@ -15,6 +15,6 @@ jobs:
       pnpm-version: 10
       node-version: 24
       java-version: 21
-      # Remove skip-appstore-release and set app-id if you want to release to the App Store
+      # This workflow publishes GitHub Releases; App Store publication is separate.
       skip-appstore-release: true
-      # app-id: app-xyz
+      app-id: app-bm4ppebf

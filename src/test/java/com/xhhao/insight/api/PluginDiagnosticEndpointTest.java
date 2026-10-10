@@ -20,7 +20,7 @@ class PluginDiagnosticEndpointTest {
         when(queries.detail("alpha", "15m"))
                 .thenReturn(
                         new PluginDiagnosticQueryService.Detail(
-                                new PluginRuntimeInfo("alpha", "甲插件", "1.0", true, "STARTED", null),
+                                new PluginRuntimeInfo("alpha", "甲插件", "1.0", null, true, "STARTED", null),
                                 "15m",
                                 0,
                                 900_000,

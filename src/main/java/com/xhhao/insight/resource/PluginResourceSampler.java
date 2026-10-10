@@ -27,6 +27,7 @@ public class PluginResourceSampler {
     private final PluginResourceAttributionState state;
     private Map<Long, Baseline> previous = Map.of();
     private boolean baselined;
+    private long previousSampledAtMs;
 
     @Autowired
     public PluginResourceSampler(
@@ -102,6 +103,7 @@ public class PluginResourceSampler {
             }
             if (!baselined) {
                 previous = current;
+                previousSampledAtMs = sampledAtMs;
                 baselined = true;
                 state.warming(counters.cpuAvailable(), counters.allocationAvailable(), sampledAtMs);
                 return Optional.empty();
@@ -156,12 +158,15 @@ public class PluginResourceSampler {
             List<PluginResourceDelta> pluginDeltas = new ArrayList<>(deltas.size());
             deltas.forEach((pluginId, value) -> pluginDeltas.add(value.toDelta(pluginId)));
 
+            long intervalMs = previousSampledAtMs > 0 && sampledAtMs > previousSampledAtMs
+                ? sampledAtMs - previousSampledAtMs : 0;
             ResourceAttributionSample sample = new ResourceAttributionSample(
-                sampledAtMs, counters.cpuAvailable(), counters.allocationAvailable(),
+                sampledAtMs, intervalMs, counters.cpuAvailable(), counters.allocationAvailable(),
                 scan.truncated(), currentThreads.size(), attributedThreads,
                 totalCpuTimeNs, attributedCpuTimeNs, totalAllocatedBytes,
                 attributedAllocatedBytes, List.copyOf(pluginDeltas));
             previous = current;
+            previousSampledAtMs = sampledAtMs;
             state.available(sample);
             return Optional.of(sample);
         } catch (RuntimeException | LinkageError failure) {
@@ -177,6 +182,7 @@ public class PluginResourceSampler {
     private void resetBaseline() {
         previous = Map.of();
         baselined = false;
+        previousSampledAtMs = 0;
     }
 
     private static long value(long[] values, int index) {

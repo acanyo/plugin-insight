@@ -3,9 +3,11 @@ package com.xhhao.insight.api;
 import com.xhhao.insight.api.model.PluginRankingItem;
 import com.xhhao.insight.halo.PluginIdentityResolver;
 import com.xhhao.insight.halo.PluginRuntimeInfo;
-import com.xhhao.insight.runtime.MonitoringState;
 import com.xhhao.insight.resource.PluginResourceAttributionState;
+import com.xhhao.insight.resource.PluginResourceDelta;
+import com.xhhao.insight.resource.ResourceAttributionSample;
 import com.xhhao.insight.resource.ResourceAttributionStatus;
+import com.xhhao.insight.runtime.MonitoringState;
 import com.xhhao.insight.storage.model.PluginMetricSort;
 import com.xhhao.insight.storage.model.PluginMetricSummary;
 import com.xhhao.insight.storage.model.PluginResourceSort;
@@ -19,21 +21,25 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.time.Clock;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-/** Resolves stored request ownership to installed plugins and builds a bounded ranking. */
+/** Resolves stored request ownership to installed plugins and builds a complete ranking. */
 @Component
 public class PluginRankingService {
 
     private static final int MAX_OBSERVED_IDENTITIES = 2_000;
-    private static final int MAX_RESULTS = 100;
+    private static final long MIN_LIVE_SAMPLE_AGE_MS = 30_000;
 
     private final PluginMetricRepository repository;
     private final PluginResourceRepository resourceRepository;
     private final MonitoringState state;
     private final PluginIdentityResolver identities;
     private final PluginResourceAttributionState resourceState;
+    private final Clock clock;
 
+    @Autowired
     public PluginRankingService(
         PluginMetricRepository repository,
         PluginResourceRepository resourceRepository,
@@ -41,47 +47,78 @@ public class PluginRankingService {
         PluginIdentityResolver identities,
         PluginResourceAttributionState resourceState
     ) {
+        this(repository, resourceRepository, state, identities, resourceState, Clock.systemUTC());
+    }
+
+    PluginRankingService(
+        PluginMetricRepository repository,
+        PluginResourceRepository resourceRepository,
+        MonitoringState state,
+        PluginIdentityResolver identities,
+        PluginResourceAttributionState resourceState,
+        Clock clock
+    ) {
         this.repository = repository;
         this.resourceRepository = resourceRepository;
         this.state = state;
         this.identities = identities;
         this.resourceState = resourceState;
+        this.clock = clock;
     }
 
     public List<PluginRankingItem> find(ApiTimeRange range, String sortName) {
+        return find(range, sortName, true);
+    }
+
+    public List<PluginRankingItem> find(
+        ApiTimeRange range,
+        String sortName,
+        boolean historyAvailable
+    ) {
         RankingSort sort = parseSort(sortName);
         Map<String, PluginRuntimeInfo> runtime = identities.index(state.halo().plugins());
         Map<String, Accumulator> resolved = new LinkedHashMap<>();
-        for (PluginMetricSummary summary : repository.findRanking(
-            range.fromMs(), range.toMs(), requestSort(sort), MAX_OBSERVED_IDENTITIES)) {
-            String identityKey = identities.key(summary.pluginId());
-            PluginRuntimeInfo plugin = runtime.get(identityKey);
-            if (plugin != null) {
-                resolved.computeIfAbsent(identityKey, ignored -> new Accumulator(plugin))
-                    .addRequests(summary);
+        // Keep every currently known plugin in the result, including plugins that have no
+        // request or resource samples in the selected range. This makes the table useful as a
+        // complete plugin inventory instead of only showing active consumers.
+        runtime.forEach((identityKey, plugin) ->
+            resolved.put(identityKey, new Accumulator(plugin)));
+        if (historyAvailable) {
+            for (PluginMetricSummary summary : repository.findRanking(
+                range.fromMs(), range.toMs(), requestSort(sort), MAX_OBSERVED_IDENTITIES)) {
+                String identityKey = identities.key(summary.pluginId());
+                PluginRuntimeInfo plugin = runtime.get(identityKey);
+                if (plugin != null) {
+                    resolved.computeIfAbsent(identityKey, ignored -> new Accumulator(plugin))
+                        .addRequests(summary);
+                }
+            }
+            for (PluginResourceSummary summary : resourceRepository.findRanking(
+                range.fromMs(), range.toMs(), resourceSort(sort), MAX_OBSERVED_IDENTITIES)) {
+                String identityKey = identities.key(summary.pluginId());
+                PluginRuntimeInfo plugin = runtime.get(identityKey);
+                if (plugin != null) {
+                    resolved.computeIfAbsent(identityKey, ignored -> new Accumulator(plugin))
+                        .addResources(summary);
+                }
             }
         }
-        for (PluginResourceSummary summary : resourceRepository.findRanking(
-            range.fromMs(), range.toMs(), resourceSort(sort), MAX_OBSERVED_IDENTITIES)) {
-            String identityKey = identities.key(summary.pluginId());
-            PluginRuntimeInfo plugin = runtime.get(identityKey);
-            if (plugin != null) {
-                resolved.computeIfAbsent(identityKey, ignored -> new Accumulator(plugin))
-                    .addResources(summary);
-            }
-        }
-        ResourceAttributionSummary coverage = resourceRepository.summarizeCoverage(
-            range.fromMs(), range.toMs());
+        ResourceAttributionSummary coverage = historyAvailable
+            ? resourceRepository.summarizeCoverage(range.fromMs(), range.toMs())
+            : ResourceAttributionSummary.empty();
         ResourceQuality quality = ResourceQuality.from(coverage, resourceState.snapshot());
+        ResourceAttributionSample liveSample = freshSample(resourceState.latestSample());
+        Map<String, PluginResourceDelta> liveDeltas = liveDeltas(liveSample);
         long totalDurationUs = resolved.values().stream()
             .mapToLong(Accumulator::durationSumUs)
             .reduce(0, PluginRankingService::saturatedAdd);
         List<PluginRankingItem> ranking = new ArrayList<>(resolved.size());
         for (Accumulator item : resolved.values()) {
-            ranking.add(item.toItem(totalDurationUs, coverage, quality));
+            ranking.add(item.toItem(totalDurationUs, coverage, quality, liveSample,
+                liveDeltas.get(identities.key(item.plugin.name()))));
         }
-        ranking.sort(comparator(sort));
-        return List.copyOf(ranking.subList(0, Math.min(MAX_RESULTS, ranking.size())));
+        ranking.sort(comparator(sort, liveSample));
+        return List.copyOf(ranking);
     }
 
     private static RankingSort parseSort(String value) {
@@ -116,19 +153,61 @@ public class PluginRankingService {
         };
     }
 
-    private static Comparator<PluginRankingItem> comparator(RankingSort sort) {
+    private static Comparator<PluginRankingItem> comparator(
+        RankingSort sort,
+        ResourceAttributionSample liveSample
+    ) {
+        boolean liveCpu = liveSample != null && liveSample.cpuAvailable();
+        boolean liveAllocation = liveSample != null && liveSample.allocationAvailable();
+        boolean liveThreads = liveSample != null;
         Comparator<PluginRankingItem> metric = switch (sort) {
             case ERRORS -> Comparator.comparingLong(PluginRankingItem::errorCount);
             case LATENCY ->
                 Comparator.comparingDouble(PluginRankingItem::averageResponseMs);
             case LOAD ->
                 Comparator.comparingDouble(PluginRankingItem::loadSharePercent);
-            case CPU -> Comparator.comparingDouble(PluginRankingItem::cpuTimeMs);
-            case MEMORY -> Comparator.comparingLong(PluginRankingItem::allocatedMemoryBytes);
-            case THREADS -> Comparator.comparingLong(PluginRankingItem::activeThreadSamples);
+            case CPU -> liveCpu
+                ? Comparator.comparingDouble(item -> item.liveCpuAvailable()
+                    ? item.liveCpuPercent() : -1)
+                : Comparator.comparingDouble(item -> item.cpuTimeAvailable()
+                    ? item.cpuTimeMs() : -1);
+            case MEMORY -> liveAllocation
+                ? Comparator.comparingLong(item -> item.liveAllocationAvailable()
+                    ? item.liveAllocationBytesPerSecond() : -1)
+                : Comparator.comparingLong(item -> item.allocatedMemoryAvailable()
+                    ? item.allocatedMemoryBytes() : -1);
+            case THREADS -> liveThreads
+                ? Comparator.comparingInt(item -> item.liveThreadsAvailable()
+                    ? item.liveThreads() : -1)
+                : Comparator.comparingLong(PluginRankingItem::activeThreadSamples);
             case REQUESTS -> Comparator.comparingLong(PluginRankingItem::requestCount);
         };
         return metric.reversed().thenComparing(PluginRankingItem::pluginId);
+    }
+
+    private static Map<String, PluginResourceDelta> liveDeltas(
+        ResourceAttributionSample sample
+    ) {
+        if (sample == null) {
+            return Map.of();
+        }
+        Map<String, PluginResourceDelta> result = new LinkedHashMap<>();
+        for (PluginResourceDelta delta : sample.plugins()) {
+            if (delta.pluginId() != null && !delta.pluginId().isBlank()) {
+                result.put(delta.pluginId().toLowerCase(Locale.ROOT), delta);
+            }
+        }
+        return result;
+    }
+
+    private ResourceAttributionSample freshSample(ResourceAttributionSample sample) {
+        if (sample == null || sample.intervalMs() <= 0 || sample.sampledAtMs() <= 0) {
+            return null;
+        }
+        long age = clock.millis() - sample.sampledAtMs();
+        long maxAge = Math.max(MIN_LIVE_SAMPLE_AGE_MS,
+            saturatedAdd(sample.intervalMs(), sample.intervalMs()));
+        return age >= 0 && age <= maxAge ? sample : null;
     }
 
     private static long saturatedAdd(long left, long right) {
@@ -147,6 +226,8 @@ public class PluginRankingService {
         private long durationMaxUs;
         private long cpuTimeNs;
         private long allocatedBytes;
+        private long cpuMeasurementSamples;
+        private long allocationMeasurementSamples;
         private long activeThreadSamples;
         private int liveThreadsMax;
 
@@ -164,6 +245,10 @@ public class PluginRankingService {
         private void addResources(PluginResourceSummary summary) {
             cpuTimeNs = saturatedAdd(cpuTimeNs, summary.cpuTimeNs());
             allocatedBytes = saturatedAdd(allocatedBytes, summary.allocatedBytes());
+            cpuMeasurementSamples = saturatedAdd(cpuMeasurementSamples,
+                summary.cpuMeasurementSamples());
+            allocationMeasurementSamples = saturatedAdd(allocationMeasurementSamples,
+                summary.allocationMeasurementSamples());
             activeThreadSamples = saturatedAdd(
                 activeThreadSamples, summary.activeThreadSamples());
             liveThreadsMax = Math.max(liveThreadsMax, summary.liveThreadsMax());
@@ -176,8 +261,13 @@ public class PluginRankingService {
         private PluginRankingItem toItem(
             long totalDurationUs,
             ResourceAttributionSummary coverage,
-            ResourceQuality quality
+            ResourceQuality quality,
+            ResourceAttributionSample liveSample,
+            PluginResourceDelta liveDelta
         ) {
+            if (!plugin.enabled() || !"STARTED".equalsIgnoreCase(plugin.phase())) {
+                liveDelta = null;
+            }
             double loadShare = totalDurationUs == 0 ? 0
                 : (double) durationSumUs / totalDurationUs * 100;
             double errorRate = requestCount == 0 ? 0 : (double) errorCount / requestCount * 100;
@@ -188,20 +278,48 @@ public class PluginRankingService {
                 allocatedBytes, coverage.totalAllocatedBytes());
             String displayName = plugin.displayName() == null || plugin.displayName().isBlank()
                 ? plugin.name() : plugin.displayName();
+            boolean liveIntervalAvailable = liveSample != null;
+            boolean liveCpuAvailable = liveIntervalAvailable && liveSample.cpuAvailable()
+                && liveDelta != null && liveDelta.cpuMeasurementSamples() > 0;
+            boolean liveAllocationAvailable = liveIntervalAvailable
+                && liveSample.allocationAvailable() && liveDelta != null
+                && liveDelta.allocationMeasurementSamples() > 0;
+            double liveCpuPercent = liveCpuAvailable && liveDelta != null
+                ? cpuPercent(liveDelta.cpuTimeNs(), liveSample.intervalMs()) : 0;
+            long liveAllocationBytesPerSecond = liveAllocationAvailable && liveDelta != null
+                ? bytesPerSecond(liveDelta.allocatedBytes(), liveSample.intervalMs()) : 0;
+            int liveThreads = liveDelta == null ? 0 : liveDelta.liveThreads();
             return new PluginRankingItem(
                 plugin.name(), displayName, plugin.enabled(), plugin.phase(), true,
                 loadShare, requestCount, errorCount, errorRate,
                 averageMs, durationMaxUs / 1_000d,
                 quality.availability(), quality.confidence(), quality.attributionMethod(),
-                quality.cpuAvailable(), quality.allocationAvailable(), cpuShare,
+                quality.cpuAvailable() && cpuMeasurementSamples > 0,
+                quality.allocationAvailable() && allocationMeasurementSamples > 0, cpuShare,
                 allocationShare, cpuTimeNs / 1_000_000d, allocatedBytes,
                 activeThreadSamples, liveThreadsMax, coverage.cpuCoveragePercent(),
-                coverage.allocationCoveragePercent());
+                coverage.allocationCoveragePercent(), liveCpuAvailable,
+                liveAllocationAvailable, liveCpuPercent, liveAllocationBytesPerSecond,
+                liveIntervalAvailable && liveDelta != null, liveThreads,
+                liveIntervalAvailable ? liveSample.sampledAtMs() : 0,
+                liveIntervalAvailable ? liveSample.intervalMs() : 0);
         }
     }
 
     private static double percentage(long value, long total) {
         return total == 0 ? 0 : Math.min(100, (double) value / total * 100);
+    }
+
+    private static double cpuPercent(long cpuTimeNs, long intervalMs) {
+        return intervalMs <= 0 ? 0 : (double) cpuTimeNs / (intervalMs * 1_000_000d) * 100;
+    }
+
+    private static long bytesPerSecond(long bytes, long intervalMs) {
+        if (intervalMs <= 0 || bytes <= 0) {
+            return 0;
+        }
+        double rate = (double) bytes * 1_000 / intervalMs;
+        return rate >= Long.MAX_VALUE ? Long.MAX_VALUE : (long) rate;
     }
 
     private enum RankingSort {

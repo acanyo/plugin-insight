@@ -19,7 +19,7 @@ export function usePerformanceResources(range: Ref<TimeRange>) {
   const plugins = createResource<PluginRankingItem[]>()
   const consumers = createResource<PluginConsumerItem[]>()
   const routes = createResource<RequestRouteItem[]>()
-  const pluginSort = ref<PluginSort>('load')
+  const pluginSort = ref<PluginSort>('cpu')
   const routeSort = ref<RequestRouteSort>('slow')
 
   const trendRequests = createLatestRequestChannel()

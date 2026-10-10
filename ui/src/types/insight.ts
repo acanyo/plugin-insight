@@ -101,6 +101,7 @@ export interface PluginRuntimeInfo {
   name: string
   displayName?: string | null
   version?: string | null
+  issuesUrl?: string | null
   enabled: boolean
   phase: string
   lastStartTime?: string | null
@@ -208,6 +209,14 @@ export interface PluginRankingItem {
   attributedThreadsMax: number
   cpuAttributionCoveragePercent: number
   allocationAttributionCoveragePercent: number
+  liveCpuAvailable: boolean
+  liveAllocationAvailable: boolean
+  liveCpuPercent: number
+  liveAllocationBytesPerSecond: number
+  liveThreadsAvailable: boolean
+  liveThreads: number
+  liveSampledAtMs: number
+  liveSampleIntervalMs: number
 }
 
 export type ConsumerPressureLevel = 'none' | 'low' | 'medium' | 'high'
@@ -233,6 +242,10 @@ export interface PluginConsumerItem {
   requestLoadSharePercent: number
   allocatedBytesPerMinute: number
   attributedThreadsMax: number
+  version?: string | null
+  issuesUrl?: string | null
+  fromMs?: number
+  toMs?: number
 }
 
 export interface PressureScoreBreakdown {

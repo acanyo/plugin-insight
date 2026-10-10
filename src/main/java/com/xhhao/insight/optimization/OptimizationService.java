@@ -81,8 +81,8 @@ public class OptimizationService {
         OptimizationProfile updated = runtimePolicy.enable(now);
         storageOptimization.optimize();
         if (!previous.enabled()) {
-            events.record("optimization", "info", "insight", "已降低 Insight 监控开销",
-                "Insight 已降低自身采样频率和插件线程扫描上限；Halo 与其他插件配置未被修改");
+            events.record("optimization", "info", "insight", "已降低运行洞察监控开销",
+                "运行洞察已降低自身采样频率和插件线程扫描上限；Halo 与其他插件配置未被修改");
         }
         return buildStatus(updated);
     }
@@ -92,8 +92,8 @@ public class OptimizationService {
         OptimizationProfile previous = runtimePolicy.snapshot();
         OptimizationProfile updated = runtimePolicy.disable(clock.millis());
         if (previous.enabled()) {
-            events.record("optimization", "info", "insight", "已恢复 Insight 标准采集",
-                "Insight 已恢复设置中配置的采样频率和插件线程扫描上限");
+            events.record("optimization", "info", "insight", "已恢复运行洞察标准采集",
+                "运行洞察已恢复设置中配置的采样频率和插件线程扫描上限");
         }
         return buildStatus(updated);
     }

@@ -27,6 +27,11 @@ const tone = computed(() => {
       <i
         :class="`resource-meter__fill--${tone}`"
         :style="{ width: formatPercent(normalizedValue) }"
+        role="progressbar"
+        :aria-label="`${label}占用率`"
+        :aria-valuenow="normalizedValue"
+        aria-valuemin="0"
+        aria-valuemax="100"
       ></i>
     </div>
     <small v-if="detail">{{ detail }}</small>
@@ -62,6 +67,12 @@ const tone = computed(() => {
 .resource-meter__track i {
   display: block;
   height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+  transform-origin: left center;
+  transition:
+    width 480ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms ease;
 }
 
 .resource-meter small {

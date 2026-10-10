@@ -51,6 +51,7 @@ const emit = defineEmits<{
           class="overview-panel__plugin-status"
           :plugins="overview.plugins"
           :active-alerts="overview.activeAlerts"
+          :environment="overview.runtime"
         />
       </div>
 

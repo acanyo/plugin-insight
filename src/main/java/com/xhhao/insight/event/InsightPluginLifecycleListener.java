@@ -16,8 +16,8 @@ public final class InsightPluginLifecycleListener {
 
     @EventListener
     public void onPluginStarted(PluginStartedEvent event) {
-        events.record("lifecycle", "info", "insight", "Insight 插件已进入运行状态",
-            "Halo 插件管理器已确认 Insight 处于 STARTED 状态",
+        events.record("lifecycle", "info", "insight", "运行洞察插件已进入运行状态",
+            "Halo 插件管理器已确认运行洞察处于 STARTED 状态",
             EventDetailsEncoder.encode(new InsightLifecycleDetails(
                 1, "insight_plugin_lifecycle", "plugin_started_event", "STARTED")));
     }

@@ -78,7 +78,7 @@ public class JfrDiagnostics {
         if (recording != null) {
             recording.close(); recording = null;
             try { records.save("jfr", active.id(), System.currentTimeMillis(), new Session(active.id(), "interrupted",
-                active.startedAtMs(), System.currentTimeMillis(), 0, null, "Insight 停止，录制中断")); }
+                active.startedAtMs(), System.currentTimeMillis(), 0, null, "运行洞察停止，录制中断")); }
             catch (RuntimeException ignored) { }
             active = null;
         }

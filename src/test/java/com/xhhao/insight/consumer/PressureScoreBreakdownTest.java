@@ -38,7 +38,7 @@ class PressureScoreBreakdownTest {
                         null,
                         List.of(
                                 new PluginRuntimeInfo(
-                                        "insight", "Insight", "1.2.0", true, "STARTED", null)),
+                                        "insight", "Insight", "1.2.0", null, true, "STARTED", null)),
                         List.of()));
         var service =
                 new PluginConsumerService(resources, requests, state, new PluginIdentityResolver());

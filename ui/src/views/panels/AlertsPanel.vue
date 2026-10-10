@@ -3,6 +3,7 @@ import { VAlert, VButton } from '@halo-dev/components'
 import { computed } from 'vue'
 import RiCheckboxCircleLine from '~icons/ri/checkbox-circle-line'
 import RiNotification3Line from '~icons/ri/notification-3-line'
+import RiSettings3Line from '~icons/ri/settings-3-line'
 
 import SectionHeading from '@/components/common/SectionHeading.vue'
 import SectionState from '@/components/common/SectionState.vue'
@@ -85,6 +86,10 @@ function statusLabel(status: string): string {
     <section class="insight-section">
       <SectionHeading title="告警事件" description="触发、确认和恢复状态">
         <template #actions>
+          <a class="notification-settings-link" href="/console/plugins/insight?tab=notifications">
+            <RiSettings3Line aria-hidden="true" />
+            通知配置
+          </a>
           <VButton
             v-permission="[INSIGHT_MANAGE_PERMISSION]"
             size="sm"
@@ -196,6 +201,36 @@ function statusLabel(status: string): string {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.notification-settings-link {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--insight-border);
+  border-radius: 6px;
+  color: var(--insight-muted);
+  background: var(--insight-surface);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease;
+}
+
+.notification-settings-link:hover {
+  border-color: var(--insight-primary);
+  color: var(--insight-primary);
+  background: var(--insight-primary-soft);
+}
+
+.notification-settings-link svg {
+  width: 14px;
+  height: 14px;
 }
 
 .alert-summary {

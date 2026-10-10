@@ -30,7 +30,7 @@ public class NotificationCommandService {
     public CompletableFuture<List<NotificationResult>> testNotifications() {
         double value = 1;
         return notifications.dispatch(new AlertNotification(
-            "", "Insight 通知测试", "info", "这是一条 Halo Insight 测试通知。",
+            "", "运行洞察通知测试", "info", "这是一条运行洞察测试通知。",
             "notification.test", value, value, Instant.ofEpochMilli(clock.millis()), false
         ));
     }

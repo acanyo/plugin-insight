@@ -24,5 +24,13 @@ public record PluginRankingItem(
     long activeThreadSamples,
     int attributedThreadsMax,
     double cpuAttributionCoveragePercent,
-    double allocationAttributionCoveragePercent
+    double allocationAttributionCoveragePercent,
+    boolean liveCpuAvailable,
+    boolean liveAllocationAvailable,
+    double liveCpuPercent,
+    long liveAllocationBytesPerSecond,
+    boolean liveThreadsAvailable,
+    int liveThreads,
+    long liveSampledAtMs,
+    long liveSampleIntervalMs
 ) {}

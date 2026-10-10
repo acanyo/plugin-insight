@@ -29,7 +29,8 @@ import run.halo.app.notification.ReasonAttributes;
 public class HaloNotificationReadService {
 
     private static final Duration REACTIVE_TIMEOUT = Duration.ofSeconds(15);
-    private static final String NOTIFICATION_TITLE_PREFIX = "[Halo Insight] ";
+    private static final String NOTIFICATION_TITLE_PREFIX = "[运行洞察] ";
+    private static final String LEGACY_NOTIFICATION_TITLE_PREFIX = "[Halo Insight] ";
     private static final Pattern INCIDENT_MARKER = Pattern.compile(
         "<!--\\s*insight-incident:([^\\r\\n]*?)\\s*-->"
     );
@@ -187,7 +188,8 @@ public class HaloNotificationReadService {
         }
         String title = stringValue(notification.getSpec().getTitle()).trim();
         return title.equals(incident.title())
-            || title.equals(NOTIFICATION_TITLE_PREFIX + incident.title());
+            || title.equals(NOTIFICATION_TITLE_PREFIX + incident.title())
+            || title.equals(LEGACY_NOTIFICATION_TITLE_PREFIX + incident.title());
     }
 
     private static boolean isUnread(Notification notification) {

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@formkit/auto-animate':
+        specifier: ^0.10.0
+        version: 0.10.0
       '@halo-dev/api-client':
         specifier: ^2.26.0
         version: 2.26.0(axios@1.20.0)
@@ -253,6 +256,9 @@ packages:
 
   '@floating-ui/utils@0.2.12':
     resolution: {integrity: sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==}
+
+  '@formkit/auto-animate@0.10.0':
+    resolution: {integrity: sha512-KGomRttjUfORuPUaR/ZGQw+6xfMrTM+sxnILv7JAd9AmabU9rg9i6gF/iC0Ih+QpKCubJpCA/1DX9UHKE8cX+A==}
 
   '@halo-dev/api-client@2.26.0':
     resolution: {integrity: sha512-z80aGP8sbTcX+s9//Q1XdF7iUByKUylAH3fJuO58pN1plQAWkClRaEiIXn56PBwL3/iPUd/RnuI7BMVTBj5Ysg==}
@@ -2441,6 +2447,8 @@ snapshots:
       '@floating-ui/core': 1.8.0
 
   '@floating-ui/utils@0.2.12': {}
+
+  '@formkit/auto-animate@0.10.0': {}
 
   '@halo-dev/api-client@2.26.0(axios@1.20.0)':
     dependencies:

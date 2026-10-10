@@ -5,7 +5,7 @@ metadata:
   labels:
     halo.run/role-template: "true"
   annotations:
-    rbac.authorization.halo.run/module: "Halo Insight · 运行洞察"
+    rbac.authorization.halo.run/module: "运行洞察"
     rbac.authorization.halo.run/display-name: "查看运行洞察"
     rbac.authorization.halo.run/ui-permissions: |
       ["plugin:insight:view"]
@@ -28,7 +28,7 @@ metadata:
   annotations:
     rbac.authorization.halo.run/dependencies: |
       ["insight-role-view-monitoring"]
-    rbac.authorization.halo.run/module: "Halo Insight · 运行洞察"
+    rbac.authorization.halo.run/module: "运行洞察"
     rbac.authorization.halo.run/display-name: "管理运行洞察"
     rbac.authorization.halo.run/ui-permissions: |
       ["plugin:insight:manage"]
@@ -62,7 +62,7 @@ metadata:
     halo.run/role-template: "true"
   annotations:
     rbac.authorization.halo.run/dependencies: '["insight-role-manage-monitoring"]'
-    rbac.authorization.halo.run/module: "Halo Insight · 运行洞察"
+    rbac.authorization.halo.run/module: "运行洞察"
     rbac.authorization.halo.run/display-name: "访问日志、线程栈与 JFR 诊断"
     rbac.authorization.halo.run/ui-permissions: '["plugin:insight:diagnose"]'
 rules:
