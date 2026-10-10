@@ -15,6 +15,4 @@ jobs:
       pnpm-version: 10
       node-version: 24
       java-version: 21
-      # This workflow publishes GitHub Releases; App Store publication is separate.
-      skip-appstore-release: true
       app-id: app-bm4ppebf
